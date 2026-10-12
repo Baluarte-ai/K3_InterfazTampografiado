@@ -236,6 +236,7 @@ if plc_conectado:
         "CRUZETA": cliente.get_node(ruta_prg + "CRUZETA"), 
         "MANUAL": cliente.get_node(ruta_prg + "MANUAL"),
         "PINTADO": cliente.get_node(ruta_prg + "PINTADO"),
+        "NUEVA_POSICION": cliente.get_node(ruta_prg + "NUEVA_POSICION"),
         
         # Coordenadas y Memorias (Numéricos DINT)
         "POS_X": cliente.get_node(ruta_prg + "POS_X"),
@@ -271,6 +272,7 @@ else:
         "CRUZETA": MockNode(False),
         "MANUAL": MockNode(False),
         "PINTADO": MockNode(False),
+        "NUEVA_POSICION": MockNode(False),
         "POS_X": MockNode(0),
         "POS_Y": MockNode(0),
         "HOME_X": MockNode(0),
@@ -1085,8 +1087,10 @@ def iniciar_tutorial_interactivo(obligatorio=False, usuario_obj=None):
                     "• 5. Fin de Ciclo, Reset y Paro de Emergencia\n\n"
                     "La estación se encuentra autorizada para operar."
                 )
+                ventana.after(500, abrir_asistente_inicio_sesion)
             else:
                 lbl_estado.configure(text="✓ Tutorial interactivo finalizado con éxito.", text_color=COLOR_OK)
+                ventana.after(500, abrir_asistente_inicio_sesion)
 
         _fn_mostrar_paso = mostrar_paso_actual
         _fn_navegar_paso = navegar_paso
@@ -1247,6 +1251,7 @@ def resetear_variables_inicio(forzar_reseteo_referencias=False):
         "CRUZETA": False,
         "MANUAL": False,
         "PINTADO": False,
+        "NUEVA_POSICION": False,
         "SENSOR_X": False,
         "SENSOR_Y": False
     }
@@ -1369,12 +1374,10 @@ def ejecutar_ir_a_cero():
 def iniciar_ciclo_general():
     """
     Al presionar INICIO:
-    Viaja primero internamente a las coordenadas guardadas de SET 0 (primeras coordenadas del ciclo)
-    y detona la variable INICIO en el PLC.
+    Activa únicamente la variable INICIO del PLC (no activa la cruzeta ni viaja a cero).
     """
-    ejecutar_ir_a_cero()
     enviar_pulso("INICIO")
-    lbl_estado.configure(text=f"▶ INICIO: Ciclo comenzado en Cero de Pintado (X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f}).", text_color=COLOR_OK)
+    lbl_estado.configure(text="▶ INICIO: Señal INICIO enviada al PLC (sin activar cruzeta).", text_color=COLOR_OK)
 
 def ejecutar_reset_general():
     """
@@ -1552,6 +1555,9 @@ def avanzar_siguiente_pieza_matriz():
             caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{sig_y:.2f}")
             enviar_datos()
             
+            # REQUERIMIENTO: Activar variable NUEVA_POSICION del PLC tras enviar la nueva coordenada
+            enviar_pulso("NUEVA_POSICION", duracion_ms=350)
+            
             # En CODESYS, la cruzeta suele estar interbloqueada si MANUAL es False.
             # Aseguramos que el PLC acepte el movimiento:
             if plc_conectado and not estado_manual:
@@ -1570,12 +1576,12 @@ def avanzar_siguiente_pieza_matriz():
             rx_ok = ultimo_plc_rx_ok if 'ultimo_plc_rx_ok' in globals() else True
             if rx_ok:
                 lbl_estado.configure(
-                    text=f"🎯 Gatillo SENSOR Y -> Avanzando a pieza {indice_matriz_actual + 1}/{len(matriz_coordenadas)}: X={sig_x:.2f} Y={sig_y:.2f} mm | PLC RECIBIÓ Y CONFIRMÓ ✓",
+                    text=f"🎯 Señal PINTADO recibida -> Avanzando a pieza {indice_matriz_actual + 1}/{len(matriz_coordenadas)}: X={sig_x:.2f} Y={sig_y:.2f} mm | NUEVA_POSICION activada ✓",
                     text_color=COLOR_OK
                 )
             else:
                 lbl_estado.configure(
-                    text=f"⚠️ Gatillo SENSOR Y -> Pieza {indice_matriz_actual + 1}: Enviado X={sig_x:.2f} Y={sig_y:.2f} mm | ⚠️ PLC reporta discrepancia. Revisa telemetría.",
+                    text=f"⚠️ Señal PINTADO -> Pieza {indice_matriz_actual + 1}: Enviado X={sig_x:.2f} Y={sig_y:.2f} mm | NUEVA_POSICION activada | ⚠️ PLC reporta discrepancia.",
                     text_color=COLOR_WARN
                 )
         else:
@@ -1689,6 +1695,7 @@ def alternar_pintar():
             caja_pos_x.delete(0, tk.END); caja_pos_x.insert(0, f"{cero_guardado_x:.2f}")
             caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{cero_guardado_y:.2f}")
             enviar_datos()
+            enviar_pulso("NUEVA_POSICION", duracion_ms=350)
             
             if plc_conectado and not estado_manual:
                 try:
@@ -1708,7 +1715,7 @@ def alternar_pintar():
                 actualizar_telemetria_plc(cero_guardado_x, cero_guardado_y)
                 
             lbl_estado.configure(
-                text=f"🎨 INICIO DE PINTADO ACTIVADO: Posicionado en SET 0 (X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f} mm). Esperando gatillo SENSOR Y...",
+                text=f"🎨 INICIO DE PINTADO ACTIVADO: Posicionado en SET 0 (X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f} mm) | NUEVA_POSICION enviada. Esperando señal PINTADO del PLC...",
                 text_color=COLOR_OK
             )
             if '_tutorial_activo' in globals() and _tutorial_activo and _paso_tutorial_actual == 4:
@@ -1998,6 +2005,7 @@ def probar_enviar_pieza_especifica(idx):
     caja_pos_x.delete(0, tk.END); caja_pos_x.insert(0, f"{px:.2f}")
     caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{py:.2f}")
     enviar_datos()
+    enviar_pulso("NUEVA_POSICION", duracion_ms=350)
     
     if plc_conectado and not estado_manual:
         try:
@@ -2021,9 +2029,8 @@ def monitoreo_ciclico():
     global ultimo_estado_pintado, ultimo_estado_sensor_y, _contador_ciclo_telemetria
     try:
         # LECTURA DE PINTADO (si no existe en el PLC retorna False sin fallar)
-        pintado_actual = leer_nodo("PINTADO", default=False)
+        pintado_actual = bool(leer_nodo("PINTADO", default=False))
         actualizar_luz(lbl_pintado, pintado_actual, "TINTA APLICADA", "ESPERANDO PINTADO...", COLOR_OK, "#F8FAFC", "white", "#334155")
-        ultimo_estado_pintado = pintado_actual
 
         # ILUMINACIÓN Y TEXTO DE SEÑALES SEGÚN CÓDIGO ORIGINAL
         actualizar_luz(lbl_m_ene, leer_nodo("M_ENE"), "ENERGIZADOS", "SIN ENERGÍA", COLOR_OK, "#F8FAFC", "white", "#334155")
@@ -2045,9 +2052,10 @@ def monitoreo_ciclico():
         # TAMPOGRAFÍA: TEXTO MODIFICADO A ACTIVO / INACTIVO SIN CAMBIAR LÓGICA
         actualizar_luz(lbl_tampo, leer_nodo("TAMPO"), "TAMPOGRAFIADO: ACTIVO", "TAMPOGRAFIADO: INACTIVO", COLOR_KOSTAL_ACCENT, "#F8FAFC", "white", "#334155")
 
-        # GATILLO EN CODESYS: sensor_y = activa el gatillo y avanza a la siguiente coordenada
-        if estado_pintar and sensor_y_val and not ultimo_estado_sensor_y:
+        # REQUERIMIENTO: Enviar la siguiente coordenada cuando la variable PINTADO del PLC sea activada (flanco ascendente) y NO con el sensor Y
+        if pintado_actual and not ultimo_estado_pintado and not estado_stop:
             avanzar_siguiente_pieza_matriz()
+        ultimo_estado_pintado = pintado_actual
         ultimo_estado_sensor_y = sensor_y_val
         
         # Actualización de telemetría de recepción PLC cada ~500ms (5 ciclos)
@@ -2118,6 +2126,328 @@ def alternar_columna_derecha():
         body_grid.columnconfigure(1, weight=72)
         body_grid.columnconfigure(2, weight=0)
 
+def abrir_asistente_inicio_sesion():
+    """
+    Asistente guiado de inicio de sesión:
+    1. Pide al operador elegir la receta/programa de producción.
+    2. Enseguida solicita calibrar o confirmar el origen Set 0 para la Pieza 01.
+    """
+    try:
+        top_asist = ctk.CTkToplevel(ventana)
+        top_asist.title("Configuración de Inicio de Sesión — KOSTAL HMI")
+        top_asist.geometry("620x560")
+        top_asist.resizable(False, False)
+        top_asist.configure(fg_color=BG_MAIN)
+        top_asist.transient(ventana)
+        top_asist.grab_set()
+        
+        try:
+            top_asist.update_idletasks()
+            vx = ventana.winfo_x() + (ventana.winfo_width() // 2) - 310
+            vy = ventana.winfo_y() + (ventana.winfo_height() // 2) - 280
+            top_asist.geometry(f"+{max(0, vx)}+{max(0, vy)}")
+        except Exception:
+            pass
+
+        # Encabezado corporativo KOSTAL
+        f_top_hdr = ctk.CTkFrame(top_asist, fg_color=COLOR_KOSTAL_NAVY, height=50, corner_radius=0)
+        f_top_hdr.pack(fill="x")
+        
+        lbl_asist_title = ctk.CTkLabel(
+            f_top_hdr, 
+            text="🏭 CONFIGURACIÓN DE TURNO — KOSTAL", 
+            font=(FONT_MAIN, 12, "bold"), 
+            text_color="white"
+        )
+        lbl_asist_title.pack(side="left", padx=16, pady=12)
+
+        lbl_paso_badge = ctk.CTkLabel(
+            f_top_hdr,
+            text="PASO 1 DE 2: ELEGIR RECETA",
+            font=(FONT_MAIN, 9, "bold"),
+            text_color=COLOR_KOSTAL_ACCENT,
+            fg_color="#FFFFFF",
+            corner_radius=4,
+            padx=8,
+            pady=3
+        )
+        lbl_paso_badge.pack(side="right", padx=16, pady=12)
+
+        # Contenedor principal de pasos
+        f_asist_body = ctk.CTkFrame(top_asist, fg_color="transparent")
+        f_asist_body.pack(fill="both", expand=True, padx=16, pady=12)
+
+        recetas_disp = config_actual.get("recetas", [])
+        nombres_recetas = [r.get("nombre", "") for r in recetas_disp] or ["Receta Base"]
+        receta_actual_nom = config_actual.get("receta_activa", nombres_recetas[0])
+        var_sel_rec = ctk.StringVar(value=receta_actual_nom)
+
+        f_fase_1 = ctk.CTkFrame(f_asist_body, fg_color="transparent")
+        f_fase_2 = ctk.CTkFrame(f_asist_body, fg_color="transparent")
+
+        # -------------------------------------------------------------
+        # FASE 1: SELECCIÓN DE RECETA
+        # -------------------------------------------------------------
+        ctk.CTkLabel(
+            f_fase_1,
+            text="📋 Seleccione el programa o receta para este turno de producción:",
+            font=(FONT_MAIN, 11, "bold"),
+            text_color=COLOR_KOSTAL_DARK,
+            anchor="w"
+        ).pack(fill="x", pady=(0, 8))
+
+        card_rec_prev = ctk.CTkFrame(f_fase_1, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD)
+        card_rec_prev.pack(fill="both", expand=True, pady=(0, 12))
+
+        f_sel_row = ctk.CTkFrame(card_rec_prev, fg_color="transparent")
+        f_sel_row.pack(fill="x", padx=14, pady=12)
+        ctk.CTkLabel(f_sel_row, text="Receta / Jig:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_PRIMARY).pack(side="left", padx=(0, 10))
+
+        f_detalles_rec = ctk.CTkFrame(card_rec_prev, fg_color="#F8FAFC", corner_radius=6, border_width=1, border_color="#E2E8F0")
+        f_detalles_rec.pack(fill="both", expand=True, padx=14, pady=(0, 12))
+
+        f_det_txt = ctk.CTkFrame(f_detalles_rec, fg_color="transparent")
+        f_det_txt.pack(side="left", fill="both", expand=True, padx=12, pady=10)
+
+        lbl_det_nom = ctk.CTkLabel(f_det_txt, text="Programa: -", font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_NAVY, anchor="w")
+        lbl_det_nom.pack(fill="x", pady=2)
+        lbl_det_pieza = ctk.CTkLabel(f_det_txt, text="Pieza: -", font=(FONT_MAIN, 10), text_color=TEXT_PRIMARY, anchor="w")
+        lbl_det_pieza.pack(fill="x", pady=1)
+        lbl_det_mod = ctk.CTkLabel(f_det_txt, text="Modelo: -", font=(FONT_MAIN, 10), text_color=TEXT_SECONDARY, anchor="w")
+        lbl_det_mod.pack(fill="x", pady=1)
+        lbl_det_mat = ctk.CTkLabel(f_det_txt, text="Matriz Fixture: -", font=(FONT_MONO, 10, "bold"), text_color="#1E3A8A", anchor="w")
+        lbl_det_mat.pack(fill="x", pady=2)
+        lbl_det_dist = ctk.CTkLabel(f_det_txt, text="Dist. C-C: -", font=(FONT_MONO, 9), text_color=TEXT_MUTED, anchor="w")
+        lbl_det_dist.pack(fill="x", pady=1)
+
+        f_img_box = ctk.CTkFrame(f_detalles_rec, fg_color="#FFFFFF", corner_radius=6, border_width=1, border_color="#CBD5E1", width=140, height=115)
+        f_img_box.pack(side="right", padx=12, pady=10)
+        f_img_box.pack_propagate(False)
+
+        lbl_img_prev = ctk.CTkLabel(f_img_box, text="[Sin imagen]", font=(FONT_MAIN, 9), text_color=TEXT_MUTED)
+        lbl_img_prev.pack(expand=True, fill="both")
+
+        def actualizar_preview_receta(nombre_rec):
+            rec_obj = next((r for r in recetas_disp if r.get("nombre") == nombre_rec), recetas_disp[0] if recetas_disp else {})
+            if rec_obj:
+                lbl_det_nom.configure(text=f"Programa: {rec_obj.get('nombre', '')}")
+                lbl_det_pieza.configure(text=f"Pieza: {rec_obj.get('pieza', '')}")
+                lbl_det_mod.configure(text=f"Modelo: {rec_obj.get('modelo', '')}")
+                fil = rec_obj.get("filas", 1)
+                col = rec_obj.get("cols", 1)
+                tot = rec_obj.get("piezas", fil * col)
+                lbl_det_mat.configure(text=f"Matriz Fixture: {fil} × {col} ({tot} Piezas)")
+                lbl_det_dist.configure(text=f"Dist. C-C: ΔX={rec_obj.get('delta_x', 0):.1f} mm | ΔY={rec_obj.get('delta_y', 0):.1f} mm")
+                
+                img_path = rec_obj.get("imagen", "")
+                ctk_img = cargar_imagen(img_path, 130, 105)
+                if ctk_img:
+                    lbl_img_prev.configure(image=ctk_img, text="")
+                else:
+                    lbl_img_prev.configure(image="", text="[Vista Jig]")
+
+        opt_rec = ctk.CTkOptionMenu(
+            f_sel_row,
+            values=nombres_recetas,
+            variable=var_sel_rec,
+            command=actualizar_preview_receta,
+            width=280,
+            height=34,
+            fg_color="#FFFFFF",
+            button_color="#E2E8F0",
+            button_hover_color="#CBD5E1",
+            text_color="#1E3A8A",
+            dropdown_fg_color="#FFFFFF",
+            dropdown_text_color="#1E293B",
+            font=(FONT_MAIN, 11, "bold")
+        )
+        opt_rec.pack(side="left")
+
+        actualizar_preview_receta(var_sel_rec.get())
+
+        def pasar_a_fase_set0():
+            rec_elegida = var_sel_rec.get()
+            cargar_receta_por_nombre(rec_elegida)
+            if 'option_receta' in globals():
+                option_receta.set(rec_elegida)
+                
+            f_fase_1.pack_forget()
+            lbl_paso_badge.configure(text="PASO 2 DE 2: AJUSTAR SET 0", fg_color="#FEF3C7", text_color="#92400E")
+            f_fase_2.pack(fill="both", expand=True)
+            actualizar_valores_fase_set0()
+
+        btn_fase1_sig = ctk.CTkButton(
+            f_fase_1,
+            text="▶  Confirmar Receta y Ajustar Set 0  ➔",
+            font=(FONT_MAIN, 12, "bold"),
+            fg_color=COLOR_KOSTAL_NAVY,
+            hover_color=COLOR_KOSTAL_ACCENT,
+            text_color="white",
+            height=42,
+            corner_radius=6,
+            command=pasar_a_fase_set0
+        )
+        btn_fase1_sig.pack(fill="x", pady=4)
+
+        # -------------------------------------------------------------
+        # FASE 2: AJUSTE DE SET 0
+        # -------------------------------------------------------------
+        ctk.CTkLabel(
+            f_fase_2,
+            text="↩ Calibre y confirme el origen de pintado (Set 0) para la Pieza 01:",
+            font=(FONT_MAIN, 11, "bold"),
+            text_color=COLOR_KOSTAL_DARK,
+            anchor="w"
+        ).pack(fill="x", pady=(0, 6))
+
+        card_set0 = ctk.CTkFrame(f_fase_2, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD)
+        card_set0.pack(fill="both", expand=True, pady=(0, 10))
+
+        f_s0_info = ctk.CTkFrame(card_set0, fg_color="#F0FDF4", corner_radius=6, border_width=1, border_color="#BBF7D0")
+        f_s0_info.pack(fill="x", padx=14, pady=10)
+
+        lbl_s0_guardado_txt = ctk.CTkLabel(
+            f_s0_info,
+            text=f"✓ SET 0 REGISTRADO:  X = {cero_guardado_x:.2f} mm   |   Y = {cero_guardado_y:.2f} mm",
+            font=(FONT_MONO, 11, "bold"),
+            text_color="#166534"
+        )
+        lbl_s0_guardado_txt.pack(padx=10, pady=8)
+
+        f_coord_grid = ctk.CTkFrame(card_set0, fg_color="transparent")
+        f_coord_grid.pack(fill="x", padx=14, pady=6)
+        f_coord_grid.columnconfigure(0, weight=1)
+        f_coord_grid.columnconfigure(1, weight=1)
+
+        f_bx = ctk.CTkFrame(f_coord_grid, fg_color="#F8FAFC", corner_radius=6, border_width=1, border_color="#E2E8F0")
+        f_bx.grid(row=0, column=0, padx=(0, 6), sticky="nsew")
+        ctk.CTkLabel(f_bx, text="Coordenada X (mm):", font=(FONT_MAIN, 9, "bold"), text_color=TEXT_MUTED).pack(anchor="w", padx=8, pady=(4, 0))
+        entry_asist_x = ctk.CTkEntry(f_bx, height=32, font=(FONT_MONO, 12, "bold"), fg_color="#FFFFFF", border_color=BORDER_CARD)
+        entry_asist_x.insert(0, f"{cero_guardado_x:.2f}")
+        entry_asist_x.pack(fill="x", padx=8, pady=(2, 6))
+
+        f_by = ctk.CTkFrame(f_coord_grid, fg_color="#F8FAFC", corner_radius=6, border_width=1, border_color="#E2E8F0")
+        f_by.grid(row=0, column=1, padx=(6, 0), sticky="nsew")
+        ctk.CTkLabel(f_by, text="Coordenada Y (mm):", font=(FONT_MAIN, 9, "bold"), text_color=TEXT_MUTED).pack(anchor="w", padx=8, pady=(4, 0))
+        entry_asist_y = ctk.CTkEntry(f_by, height=32, font=(FONT_MONO, 12, "bold"), fg_color="#FFFFFF", border_color=BORDER_CARD)
+        entry_asist_y.insert(0, f"{cero_guardado_y:.2f}")
+        entry_asist_y.pack(fill="x", padx=8, pady=(2, 6))
+
+        f_jog_rapido = ctk.CTkFrame(card_set0, fg_color="transparent")
+        f_jog_rapido.pack(fill="x", padx=14, pady=6)
+        
+        ctk.CTkLabel(f_jog_rapido, text="Movimiento Manual Rápido (Jog):", font=(FONT_MAIN, 9, "bold"), text_color=TEXT_MUTED).pack(side="left")
+
+        def jog_asist(eje, dir_val):
+            mover_cruzeta(eje, dir_val)
+            actualizar_valores_fase_set0()
+
+        f_jog_btns = ctk.CTkFrame(f_jog_rapido, fg_color="transparent")
+        f_jog_btns.pack(side="right")
+
+        for b_lbl, ax, dr in [("◀ X-", "X", -1), ("▶ X+", "X", 1), ("▲ Y+", "Y", 1), ("▼ Y-", "Y", -1)]:
+            ctk.CTkButton(
+                f_jog_btns,
+                text=b_lbl,
+                font=(FONT_MONO, 10, "bold"),
+                width=55,
+                height=28,
+                fg_color="#FFFFFF",
+                hover_color="#E2E8F0",
+                text_color=COLOR_KOSTAL_NAVY,
+                border_width=1,
+                border_color=BORDER_CARD,
+                corner_radius=4,
+                command=lambda a=ax, d=dr: jog_asist(a, d)
+            ).pack(side="left", padx=2)
+
+        def actualizar_valores_fase_set0():
+            try:
+                cur_x = float(caja_pos_x.get())
+                cur_y = float(caja_pos_y.get())
+                entry_asist_x.delete(0, tk.END); entry_asist_x.insert(0, f"{cur_x:.2f}")
+                entry_asist_y.delete(0, tk.END); entry_asist_y.insert(0, f"{cur_y:.2f}")
+            except Exception:
+                pass
+            lbl_s0_guardado_txt.configure(
+                text=f"✓ SET 0 REGISTRADO:  X = {cero_guardado_x:.2f} mm   |   Y = {cero_guardado_y:.2f} mm"
+            )
+
+        def aplicar_guardar_set0_asistente():
+            try:
+                nx = limitar_coord(float(entry_asist_x.get()))
+                ny = limitar_coord(float(entry_asist_y.get()))
+                caja_pos_x.delete(0, tk.END); caja_pos_x.insert(0, f"{nx:.2f}")
+                caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{ny:.2f}")
+                guardar_posicion_como_cero()
+                actualizar_valores_fase_set0()
+                lbl_s0_guardado_txt.configure(
+                    text=f"✓ NUEVO SET 0 FIJADO:  X = {nx:.2f} mm   |   Y = {ny:.2f} mm",
+                    text_color="#047857"
+                )
+            except Exception as ex:
+                messagebox.showerror("Error", f"Valores no válidos para Set 0: {ex}")
+
+        btn_fijar_s0 = ctk.CTkButton(
+            card_set0,
+            text="↩  Fijar Posición como SET 0",
+            font=(FONT_MAIN, 11, "bold"),
+            fg_color=COLOR_OK,
+            hover_color=COLOR_OK_HOVER,
+            text_color="white",
+            height=34,
+            corner_radius=6,
+            command=aplicar_guardar_set0_asistente
+        )
+        btn_fijar_s0.pack(fill="x", padx=14, pady=8)
+
+        def finalizar_asistente():
+            top_asist.destroy()
+            resaltar_temporalmente_set0_y_home(4)
+            lbl_estado.configure(
+                text=f"✓ Inicio completado: Programa '{var_sel_rec.get()}' y Set 0 (X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f}) listos.",
+                text_color=COLOR_OK
+            )
+
+        top_asist.protocol("WM_DELETE_WINDOW", finalizar_asistente)
+
+        f_fin_row = ctk.CTkFrame(f_fase_2, fg_color="transparent")
+        f_fin_row.pack(fill="x", pady=4)
+
+        btn_ir_home_asist = ctk.CTkButton(
+            f_fin_row,
+            text="🏠  Ir a Home (Opcional)",
+            font=(FONT_MAIN, 11, "bold"),
+            fg_color="#FFFFFF",
+            hover_color="#E2E8F0",
+            text_color=COLOR_KOSTAL_NAVY,
+            border_width=1,
+            border_color=BORDER_CARD,
+            height=40,
+            corner_radius=6,
+            command=ejecutar_home_general
+        )
+        btn_ir_home_asist.pack(side="left", fill="x", expand=True, padx=(0, 4))
+
+        btn_listo_prod = ctk.CTkButton(
+            f_fin_row,
+            text="✓  Confirmar y Comenzar Producción",
+            font=(FONT_MAIN, 11, "bold"),
+            fg_color=COLOR_KOSTAL_NAVY,
+            hover_color=COLOR_KOSTAL_ACCENT,
+            text_color="white",
+            height=40,
+            corner_radius=6,
+            command=finalizar_asistente
+        )
+        btn_listo_prod.pack(side="right", fill="x", expand=True, padx=(4, 0))
+
+        # Iniciar mostrando fase 1
+        f_fase_1.pack(fill="both", expand=True)
+
+    except Exception as e:
+        print(f"Error al abrir asistente de inicio de sesión: {e}")
+
 def iniciar_sesion(usuario_seleccionado, rol="OPERADOR"):
     """
     Inicia sesión.
@@ -2149,6 +2479,9 @@ def iniciar_sesion(usuario_seleccionado, rol="OPERADOR"):
     usr_obj = next((u for u in USUARIOS_SISTEMA if u.get("nombre") == usuario_seleccionado), None)
     if usr_obj and not usr_obj.get("tutorial_completado", True):
         ventana.after(500, lambda uo=usr_obj: abrir_tutorial_proceso(obligatorio=True, usuario_obj=uo))
+    else:
+        # REQUERIMIENTO: Al abrir sesión, pedir elegir receta y enseguida ajustar Set 0
+        ventana.after(350, abrir_asistente_inicio_sesion)
 
 def procesar_login_formulario():
     """Valida usuario y contraseña. Solo detona INICIO si las credenciales son válidas"""
@@ -2778,25 +3111,27 @@ lbl_matriz_dist_badge = ctk.CTkLabel(
 )
 lbl_matriz_dist_badge.pack(side="left", padx=8, pady=3)
 
-def simular_trigger_sensor_y(event=None):
+def simular_trigger_pintado(event=None):
     if not plc_conectado:
-        nodos["SENSOR_Y"].set_value(True)
-        lbl_estado.configure(text="🎯 Gatillo SENSOR Y disparado en simulación (Flanco de subida)", text_color=COLOR_OK)
-        ventana.after(250, lambda: nodos["SENSOR_Y"].set_value(False))
+        nodos["PINTADO"].set_value(True)
+        lbl_estado.configure(text="🎯 Gatillo PINTADO disparado en simulación (Flanco de subida)", text_color=COLOR_OK)
+        ventana.after(250, lambda: nodos["PINTADO"].set_value(False))
+    else:
+        enviar_pulso("PINTADO")
     if '_tutorial_activo' in globals() and _tutorial_activo and _paso_tutorial_actual == 4:
         notificar_accion_tutorial(4, delay_ms=850)
 
 btn_sim_trigger = ctk.CTkButton(
     f_matriz_info_bar,
-    text="🎯 Disparar Gatillo (Sensor Y)",
+    text="🎯 Disparar Gatillo (PINTADO)",
     font=(FONT_MAIN, 8, "bold"),
-    width=135,
+    width=145,
     height=22,
     fg_color=COLOR_OK_SOFT,
     hover_color=COLOR_OK,
     text_color=COLOR_OK_TEXT,
     corner_radius=4,
-    command=simular_trigger_sensor_y
+    command=simular_trigger_pintado
 )
 btn_sim_trigger.pack(side="right", padx=6, pady=3)
 
