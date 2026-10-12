@@ -1,0 +1,128 @@
+{
+    "cero_guardado_x": 200.0,
+    "cero_guardado_y": 0.0,
+    "velocidad": 100,
+    "paso_jog": 5.0,
+    "receta_activa": "KSL-002 - Inserto Palanca",
+    "recetas": [
+        {
+            "nombre": "KSL-001 - Bisel Frontal",
+            "pieza": "Bisel Clúster Cuadrante",
+            "modelo": "KSL-001",
+            "filas": 3,
+            "cols": 5,
+            "piezas": 15,
+            "delta_x": 25.0,
+            "delta_y": 30.0,
+            "velocidad": 100,
+            "imagen": "Assets/840d61ad-a9f0-4cc2-8114-b74643920fd2.jpg"
+        },
+        {
+            "nombre": "KSL-002 - Inserto Palanca",
+            "pieza": "Inserto Selector Dirección",
+            "modelo": "KSL-002",
+            "filas": 2,
+            "cols": 4,
+            "piezas": 8,
+            "delta_x": 30.0,
+            "delta_y": 35.0,
+            "velocidad": 120,
+            "imagen": "Assets/a002db93-f06c-4ee5-97a2-60549ad9a379.jpg"
+        },
+        {
+            "nombre": "KSL-003 - Conector SMC",
+            "pieza": "Carcasa Conector 16 Pin",
+            "modelo": "KSL-003",
+            "filas": 4,
+            "cols": 4,
+            "piezas": 16,
+            "delta_x": 20.0,
+            "delta_y": 20.0,
+            "velocidad": 110,
+            "imagen": "Assets/cd87b1e8-6d7b-48fd-af44-a450125bdfd1.jpg"
+        },
+        {
+            "nombre": "Brayan",
+            "pieza": "Brayan",
+            "modelo": "Guerrero",
+            "filas": 1,
+            "cols": 3,
+            "piezas": 3,
+            "delta_x": 28.0,
+            "delta_y": 32.0,
+            "velocidad": 115,
+            "imagen": "C:/Users/eliza/Downloads/descarga (5).jpg"
+        },
+        {
+            "nombre": "Prueba 1",
+            "pieza": "Jig Prueba",
+            "modelo": "M-Prueba",
+            "filas": 5,
+            "cols": 6,
+            "piezas": 30,
+            "delta_x": 37.0,
+            "delta_y": 35.0,
+            "velocidad": 100,
+            "imagen": "C:/Users/eliza/Downloads/Screenshot 2026-10-09 134218.png"
+        },
+        {
+            "nombre": "a",
+            "pieza": "a",
+            "modelo": "a",
+            "filas": 6,
+            "cols": 5,
+            "piezas": 30,
+            "delta_x": 37.0,
+            "delta_y": 35.0,
+            "velocidad": 110,
+            "imagen": "C:/Users/eliza/Downloads/Screenshot 2026-10-09 134218.png"
+        },
+        {
+            "nombre": "Botón B",
+            "pieza": "Emblema Baluartita",
+            "modelo": "KSL-001",
+            "filas": 4,
+            "cols": 6,
+            "piezas": 24,
+            "delta_x": 30.0,
+            "delta_y": 20.0,
+            "velocidad": 115,
+            "imagen": "C:\\Users\\eliza\\Desktop\\Interfaz Kostal 1.0\\Assets\\840d61ad-a9f0-4cc2-8114-b74643920fd2.jpg"
+        }
+    ],
+    "usuarios": [
+        {
+            "num": "KOSTAL-0842",
+            "nombre": "Juan Pérez",
+            "rol": "OPERADOR",
+            "pass": "1234",
+            "tutorial_completado": true
+        },
+        {
+            "num": "KOSTAL-0001",
+            "nombre": "Carlos Hernández",
+            "rol": "ADMIN",
+            "pass": "admin",
+            "tutorial_completado": true
+        },
+        {
+            "num": "KOSTAL-0913",
+            "nombre": "María López",
+            "rol": "OPERADOR",
+            "pass": "1234",
+            "tutorial_completado": true
+        },
+        {
+            "num": "KOSTAL-1052",
+            "nombre": "Pedro Picapiedra",
+            "rol": "OPERADOR",
+            "pass": "1234",
+            "tutorial_completado": true
+        }
+    ],
+    "ajustes_globales": {
+        "plc_url": "opc.tcp://192.168.1.69:4840",
+        "tiempo_muestreo_ms": 100,
+        "estacion_id": "EST-KOSTAL-04"
+    }
+}
