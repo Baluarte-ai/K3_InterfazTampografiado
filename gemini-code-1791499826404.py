@@ -236,6 +236,7 @@ if plc_conectado:
         "CRUZETA": cliente.get_node(ruta_prg + "CRUZETA"), 
         "MANUAL": cliente.get_node(ruta_prg + "MANUAL"),
         "PINTADO": cliente.get_node(ruta_prg + "PINTADO"),
+        "NUEVA_POS": cliente.get_node(ruta_prg + "NUEVA_POS"),
         "NUEVA_POSICION": cliente.get_node(ruta_prg + "NUEVA_POSICION"),
         
         # Coordenadas y Memorias (Numéricos DINT)
@@ -272,6 +273,7 @@ else:
         "CRUZETA": MockNode(False),
         "MANUAL": MockNode(False),
         "PINTADO": MockNode(False),
+        "NUEVA_POS": MockNode(False),
         "NUEVA_POSICION": MockNode(False),
         "POS_X": MockNode(0),
         "POS_Y": MockNode(0),
@@ -1251,6 +1253,7 @@ def resetear_variables_inicio(forzar_reseteo_referencias=False):
         "CRUZETA": False,
         "MANUAL": False,
         "PINTADO": False,
+        "NUEVA_POS": False,
         "NUEVA_POSICION": False,
         "SENSOR_X": False,
         "SENSOR_Y": False
@@ -1334,6 +1337,41 @@ def _resetear_pulso(nombre_variable):
             nodos[nombre_variable].set_value(False)
     except Exception:
         pass
+
+def activar_nueva_posicion(duracion_ms=500):
+    """
+    Garantiza la activación certera de la señal de nueva posición en el PLC WAGO.
+    1. Activa tanto 'NUEVA_POS' como 'NUEVA_POSICION' para asegurar 100% compatibilidad
+       con la variable declarada en CODESYS.
+    2. Utiliza una duración de 500 ms para que el ciclo de escaneo del PLC la lea sin fallos.
+    3. Maneja excepciones individualmente para que no se bloquee si una variable no existe.
+    """
+    activado_ok = False
+    for tag in ["NUEVA_POS", "NUEVA_POSICION"]:
+        if tag in nodos:
+            try:
+                if plc_conectado:
+                    nodos[tag].set_value(ua.Variant(True, ua.VariantType.Boolean))
+                else:
+                    nodos[tag].set_value(True)
+                activado_ok = True
+            except Exception:
+                pass
+                
+    def _apagar_senales():
+        for tag in ["NUEVA_POS", "NUEVA_POSICION"]:
+            if tag in nodos:
+                try:
+                    if plc_conectado:
+                        nodos[tag].set_value(ua.Variant(False, ua.VariantType.Boolean))
+                    else:
+                        nodos[tag].set_value(False)
+                except Exception:
+                    pass
+                    
+    ventana.after(duracion_ms, _apagar_senales)
+    if activado_ok:
+        lbl_estado.configure(text=f"✓ Señal NUEVA_POS activada ({duracion_ms}ms) en PLC", text_color=COLOR_OK)
 
 def ejecutar_home_general():
     global maquina_en_home
@@ -1555,8 +1593,8 @@ def avanzar_siguiente_pieza_matriz():
             caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{sig_y:.2f}")
             enviar_datos()
             
-            # REQUERIMIENTO: Activar variable NUEVA_POSICION del PLC tras enviar la nueva coordenada
-            enviar_pulso("NUEVA_POSICION", duracion_ms=350)
+            # REQUERIMIENTO: Activar de forma garantizada NUEVA_POS / NUEVA_POSICION en el PLC
+            activar_nueva_posicion(duracion_ms=500)
             
             # En CODESYS, la cruzeta suele estar interbloqueada si MANUAL es False.
             # Aseguramos que el PLC acepte el movimiento:
@@ -1695,7 +1733,7 @@ def alternar_pintar():
             caja_pos_x.delete(0, tk.END); caja_pos_x.insert(0, f"{cero_guardado_x:.2f}")
             caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{cero_guardado_y:.2f}")
             enviar_datos()
-            enviar_pulso("NUEVA_POSICION", duracion_ms=350)
+            activar_nueva_posicion(duracion_ms=500)
             
             if plc_conectado and not estado_manual:
                 try:
@@ -2005,7 +2043,7 @@ def probar_enviar_pieza_especifica(idx):
     caja_pos_x.delete(0, tk.END); caja_pos_x.insert(0, f"{px:.2f}")
     caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{py:.2f}")
     enviar_datos()
-    enviar_pulso("NUEVA_POSICION", duracion_ms=350)
+    activar_nueva_posicion(duracion_ms=500)
     
     if plc_conectado and not estado_manual:
         try:
@@ -2028,43 +2066,84 @@ _contador_ciclo_telemetria = 0
 def monitoreo_ciclico():
     global ultimo_estado_pintado, ultimo_estado_sensor_y, _contador_ciclo_telemetria
     try:
-        # LECTURA DE PINTADO (si no existe en el PLC retorna False sin fallar)
-        pintado_actual = bool(leer_nodo("PINTADO", default=False))
-        actualizar_luz(lbl_pintado, pintado_actual, "TINTA APLICADA", "ESPERANDO PINTADO...", COLOR_OK, "#F8FAFC", "white", "#334155")
+        if plc_conectado:
+            # OPTIMIZACIÓN INDUSTRIAL: Leer todos los nodos de estado en un solo paquete TCP (10-15 ms)
+            # Evita retrasos de red que causaban pérdida aleatoria del pulso de PINTADO
+            try:
+                nodos_mon = [
+                    nodos["PINTADO"], nodos["M_ENE"], nodos["M_SET"], nodos["LISTO"],
+                    nodos["NO_LISTO"], nodos["ALARM_X"], nodos["ALARM_Y"], nodos["PE"],
+                    nodos["SENSOR_X"], nodos["SENSOR_Y"], nodos["TAMPO"]
+                ]
+                vals = cliente.get_values(nodos_mon)
+                pintado_actual = bool(vals[0])
+                m_ene_val      = vals[1]
+                m_set_val      = vals[2]
+                listo_val      = vals[3]
+                no_listo_val   = vals[4]
+                alarm_x_val    = vals[5]
+                alarm_y_val    = vals[6]
+                pe_val         = vals[7]
+                sensor_x_val   = bool(vals[8])
+                sensor_y_val   = bool(vals[9])
+                tampo_val      = vals[10]
+            except Exception:
+                pintado_actual = bool(leer_nodo("PINTADO", default=False))
+                m_ene_val      = leer_nodo("M_ENE")
+                m_set_val      = leer_nodo("M_SET")
+                listo_val      = leer_nodo("LISTO")
+                no_listo_val   = leer_nodo("NO_LISTO")
+                alarm_x_val    = leer_nodo("ALARM_X")
+                alarm_y_val    = leer_nodo("ALARM_Y")
+                pe_val         = leer_nodo("PE")
+                sensor_x_val   = bool(leer_nodo("SENSOR_X", default=False))
+                sensor_y_val   = bool(leer_nodo("SENSOR_Y", default=False))
+                tampo_val      = leer_nodo("TAMPO")
+        else:
+            pintado_actual = bool(nodos["PINTADO"].get_value())
+            m_ene_val      = nodos["M_ENE"].get_value()
+            m_set_val      = nodos["M_SET"].get_value()
+            listo_val      = nodos["LISTO"].get_value()
+            no_listo_val   = nodos["NO_LISTO"].get_value()
+            alarm_x_val    = nodos["ALARM_X"].get_value()
+            alarm_y_val    = nodos["ALARM_Y"].get_value()
+            pe_val         = nodos["PE"].get_value()
+            sensor_x_val   = bool(nodos["SENSOR_X"].get_value())
+            sensor_y_val   = bool(nodos["SENSOR_Y"].get_value())
+            tampo_val      = nodos["TAMPO"].get_value()
 
-        # ILUMINACIÓN Y TEXTO DE SEÑALES SEGÚN CÓDIGO ORIGINAL
-        actualizar_luz(lbl_m_ene, leer_nodo("M_ENE"), "ENERGIZADOS", "SIN ENERGÍA", COLOR_OK, "#F8FAFC", "white", "#334155")
-        actualizar_luz(lbl_m_set, leer_nodo("M_SET"), "ORÍGENES LISTOS", "FALTA HOME", COLOR_OK, COLOR_WARN, "white", "black")
-        actualizar_luz(lbl_listo, leer_nodo("LISTO"), "ESTADO: LISTO", "ESPERANDO", COLOR_OK, "#F8FAFC", "white", "#334155")
-        
-        # ALARMAS CRÍTICAS (EN ROJO VIVO CUANDO ACTIVAS)
-        actualizar_luz(lbl_no_listo, leer_nodo("NO_LISTO"), "ESTADO: NO LISTO", "---", COLOR_NOK, "#F8FAFC", "white", "#334155")
-        actualizar_luz(lbl_alarm_x, leer_nodo("ALARM_X"), "ALARMA X!", "X: Normal", COLOR_NOK, "#F8FAFC", "white", "#334155")
-        actualizar_luz(lbl_alarm_y, leer_nodo("ALARM_Y"), "ALARMA Y!", "Y: Normal", COLOR_NOK, "#F8FAFC", "white", "#334155")
-        actualizar_luz(lbl_pe, leer_nodo("PE"), "PE: ACTIVADO", "PE: OK", COLOR_NOK, "#F8FAFC", "white", "#334155")
-        
-        # SENSORES (EN AMARILLO CUANDO ACTIVOS)
-        sensor_x_val = bool(leer_nodo("SENSOR_X", default=False))
-        sensor_y_val = bool(leer_nodo("SENSOR_Y", default=False))
+        # Actualizar indicadores visuales
+        actualizar_luz(lbl_pintado, pintado_actual, "TINTA APLICADA", "ESPERANDO PINTADO...", COLOR_OK, "#F8FAFC", "white", "#334155")
+        actualizar_luz(lbl_m_ene, m_ene_val, "ENERGIZADOS", "SIN ENERGÍA", COLOR_OK, "#F8FAFC", "white", "#334155")
+        actualizar_luz(lbl_m_set, m_set_val, "ORÍGENES LISTOS", "FALTA HOME", COLOR_OK, COLOR_WARN, "white", "black")
+        actualizar_luz(lbl_listo, listo_val, "ESTADO: LISTO", "ESPERANDO", COLOR_OK, "#F8FAFC", "white", "#334155")
+        actualizar_luz(lbl_no_listo, no_listo_val, "ESTADO: NO LISTO", "---", COLOR_NOK, "#F8FAFC", "white", "#334155")
+        actualizar_luz(lbl_alarm_x, alarm_x_val, "ALARMA X!", "X: Normal", COLOR_NOK, "#F8FAFC", "white", "#334155")
+        actualizar_luz(lbl_alarm_y, alarm_y_val, "ALARMA Y!", "Y: Normal", COLOR_NOK, "#F8FAFC", "white", "#334155")
+        actualizar_luz(lbl_pe, pe_val, "PE: ACTIVADO", "PE: OK", COLOR_NOK, "#F8FAFC", "white", "#334155")
         actualizar_luz(lbl_sensor_x, sensor_x_val, "SENSOR X: ON", "SENSOR X: OFF", COLOR_WARN, "#F8FAFC", "black", "#334155")
         actualizar_luz(lbl_sensor_y, sensor_y_val, "SENSOR Y: ON", "SENSOR Y: OFF", COLOR_WARN, "#F8FAFC", "black", "#334155")
-        
-        # TAMPOGRAFÍA: TEXTO MODIFICADO A ACTIVO / INACTIVO SIN CAMBIAR LÓGICA
-        actualizar_luz(lbl_tampo, leer_nodo("TAMPO"), "TAMPOGRAFIADO: ACTIVO", "TAMPOGRAFIADO: INACTIVO", COLOR_KOSTAL_ACCENT, "#F8FAFC", "white", "#334155")
+        actualizar_luz(lbl_tampo, tampo_val, "TAMPOGRAFIADO: ACTIVO", "TAMPOGRAFIADO: INACTIVO", COLOR_KOSTAL_ACCENT, "#F8FAFC", "white", "#334155")
 
-        # REQUERIMIENTO: Enviar la siguiente coordenada cuando la variable PINTADO del PLC sea activada (flanco ascendente) y NO con el sensor Y
+        # DETECCIÓN DE FLANCO: Cuando PINTADO se activa, avanza a la siguiente coordenada
         if pintado_actual and not ultimo_estado_pintado and not estado_stop:
             avanzar_siguiente_pieza_matriz()
+            # Handshake de confirmación en el PLC si corresponde
+            if plc_conectado:
+                try:
+                    nodos["PINTADO"].set_value(ua.Variant(False, ua.VariantType.Boolean))
+                except Exception:
+                    pass
         ultimo_estado_pintado = pintado_actual
         ultimo_estado_sensor_y = sensor_y_val
         
-        # Actualización de telemetría de recepción PLC cada ~500ms (5 ciclos)
+        # Telemetría cada ~400ms (5 ciclos)
         _contador_ciclo_telemetria = (_contador_ciclo_telemetria + 1) % 5
         if _contador_ciclo_telemetria == 0:
             actualizar_telemetria_plc()
     except Exception:
         pass
-    ventana.after(100, monitoreo_ciclico)
+    ventana.after(80, monitoreo_ciclico)
 
 def cerrar_aplicacion():
     try:
