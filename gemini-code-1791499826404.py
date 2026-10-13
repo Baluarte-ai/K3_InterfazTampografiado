@@ -1138,13 +1138,23 @@ def cargar_receta_por_nombre(nombre_receta):
     config_actual["receta_activa"] = nombre_receta
     guardar_configuracion()
     
-    # Si cambió la receta, obligar a volver a setear Set 0 y Home para la nueva receta
+    # Si cambió la receta / jig, obligar a volver a setear Set 0 para la nueva receta
     if cambio_de_receta:
         receta_actual_calibrada = nombre_receta
         cero_ha_sido_seteado = False
         maquina_en_home = False
-        if 'lbl_indicador_set0' in globals():
-            lbl_indicador_set0.configure(text=f"⚠️ PENDIENTE: Set 0 requerido para {nombre_receta}", text_color="#B45309")
+        if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
+            lbl_indicador_set0.configure(
+                text=f"⚠️ SET 0 PENDIENTE: Calibre origen para '{nombre_receta}' con JOG y presione '↩ Set 0'",
+                text_color="#B45309"
+            )
+        if 'f_cero_ind' in globals() and f_cero_ind:
+            f_cero_ind.configure(fg_color="#FEF3C7", border_color="#FDE68A")
+        if 'lbl_estado' in globals() and lbl_estado:
+            lbl_estado.configure(
+                text=f"⚠️ Cambio a Jig '{nombre_receta}'. Debe ajustar Set 0 con la Cruceta JOG antes de iniciar el pintado.",
+                text_color=COLOR_WARN
+            )
     
     # 1. Geometría de matriz (configurable arbitrariamente)
     matriz_filas = max(1, int(receta.get("filas", 3)))
@@ -1668,16 +1678,15 @@ def avanzar_siguiente_pieza_matriz():
 def alternar_pintar():
     """
     Alterna 'Inicio de pintado':
-    REQUISITOS PREVIOS OBLIGATORIOS:
-    1. Haber realizado primero SET 0 (cero_ha_sido_seteado)
-    2. Estar posicionado en HOME (maquina_en_home)
+    REQUISITO PREVIO OBLIGATORIO:
+    1. Haber realizado y calibrado SET 0 (cero_ha_sido_seteado)
     Al cumplirse, viaja a SET 0 y comienza la secuencia.
-    Cada activación de SENSOR_Y avanzará a la siguiente coordenada de la matriz.
+    Cada activación de PLC (variable PINTADO) avanzará a la siguiente coordenada de la matriz.
     """
     global estado_pintar, indice_matriz_actual, maquina_en_home
     try:
         if not estado_pintar:
-            # 1. VERIFICAR QUE PRIMERO SE HAYA SETEADO EL 0
+            # 1. VERIFICAR QUE SE HAYA CALIBRADO EL SET 0
             if not cero_ha_sido_seteado:
                 lbl_estado.configure(
                     text="⚠️ ACCIÓN REQUERIDA: Debe calibrar el 'Set 0' con la cruceta JOG antes de poder iniciar el pintado.",
@@ -1692,29 +1701,7 @@ def alternar_pintar():
                 )
                 return
                 
-            # 2. VERIFICAR QUE SEGUNDO ESTÉ EN HOME
-            try:
-                pos_x_actual = limitar_coord(nodos["POS_X"].get_value() / 100.0 if plc_conectado else float(caja_pos_x.get()))
-                pos_y_actual = limitar_coord(nodos["POS_Y"].get_value() / 100.0 if plc_conectado else float(caja_pos_y.get()))
-                home_x = limitar_coord(nodos["HOME_X"].get_value() / 100.0)
-                home_y = limitar_coord(nodos["HOME_Y"].get_value() / 100.0)
-                esta_en_home = maquina_en_home or (abs(pos_x_actual - home_x) <= 0.2 and abs(pos_y_actual - home_y) <= 0.2)
-            except Exception:
-                esta_en_home = maquina_en_home
-                
-            if not esta_en_home:
-                lbl_estado.configure(
-                    text="⚠️ ACCIÓN REQUERIDA (2/2): La máquina debe estar en HOME antes de iniciar el pintado.",
-                    text_color=COLOR_WARN
-                )
-                messagebox.showwarning(
-                    "Requisito 2 de Pintado",
-                    "La máquina debe estar ubicada en la posición HOME antes de iniciar el ciclo de pintado.\n\n"
-                    "▶ Presione el botón '🏠 Ir a home' para referenciar la máquina."
-                )
-                return
-                
-            # Ambos requisitos cumplidos -> Iniciar pintado
+            # Requisito cumplido -> Iniciar pintado
             estado_pintar = True
             maquina_en_home = False
             btn_pintar.configure(text="🎨\nPINTANDO\nACTIVO\n[ON]", fg_color=COLOR_WARN, text_color="#1E293B", border_color="#B45309")
@@ -2206,101 +2193,73 @@ def alternar_columna_derecha():
         body_grid.columnconfigure(1, weight=72)
         body_grid.columnconfigure(2, weight=0)
 
-def abrir_asistente_inicio_sesion():
+def abrir_dialogo_seleccion_jig():
     """
-    Asistente guiado de inicio de sesión:
-    1. Pide al operador elegir la receta/programa de producción.
-    2. Enseguida solicita calibrar o confirmar el origen Set 0 para la Pieza 01.
+    Diálogo para seleccionar el Jig/Receta al iniciar sesión.
+    No permite pintar hasta que el operador calibre y ajuste el Set 0 en el panel principal.
     """
     try:
-        top_asist = ctk.CTkToplevel(ventana)
-        top_asist.title("Configuración de Inicio de Sesión — KOSTAL HMI")
-        top_asist.geometry("620x560")
-        top_asist.resizable(False, False)
-        top_asist.configure(fg_color=BG_MAIN)
-        top_asist.transient(ventana)
-        top_asist.grab_set()
+        top_jig = ctk.CTkToplevel(ventana)
+        top_jig.title("Selección de Jig — KOSTAL HMI")
+        top_jig.geometry("560x430")
+        top_jig.resizable(False, False)
+        top_jig.configure(fg_color=BG_MAIN)
+        top_jig.transient(ventana)
+        top_jig.grab_set()
+        centrar_ventana(top_jig, 560, 430)
         
-        try:
-            top_asist.update_idletasks()
-            vx = ventana.winfo_x() + (ventana.winfo_width() // 2) - 310
-            vy = ventana.winfo_y() + (ventana.winfo_height() // 2) - 280
-            top_asist.geometry(f"+{max(0, vx)}+{max(0, vy)}")
-        except Exception:
-            pass
-
         # Encabezado corporativo KOSTAL
-        f_top_hdr = ctk.CTkFrame(top_asist, fg_color=COLOR_KOSTAL_NAVY, height=50, corner_radius=0)
+        f_top_hdr = ctk.CTkFrame(top_jig, fg_color=COLOR_KOSTAL_NAVY, height=48, corner_radius=0)
         f_top_hdr.pack(fill="x")
         
-        lbl_asist_title = ctk.CTkLabel(
+        ctk.CTkLabel(
             f_top_hdr, 
-            text="🏭 CONFIGURACIÓN DE TURNO — KOSTAL", 
-            font=(FONT_MAIN, 12, "bold"), 
+            text="🏭 CONFIGURACIÓN DE JIG DE PRODUCCIÓN", 
+            font=(FONT_MAIN, 13, "bold"), 
             text_color="white"
-        )
-        lbl_asist_title.pack(side="left", padx=16, pady=12)
+        ).pack(side="left", padx=16, pady=10)
 
-        lbl_paso_badge = ctk.CTkLabel(
-            f_top_hdr,
-            text="PASO 1 DE 2: ELEGIR RECETA",
-            font=(FONT_MAIN, 9, "bold"),
-            text_color=COLOR_KOSTAL_ACCENT,
-            fg_color="#FFFFFF",
-            corner_radius=4,
-            padx=8,
-            pady=3
-        )
-        lbl_paso_badge.pack(side="right", padx=16, pady=12)
-
-        # Contenedor principal de pasos
-        f_asist_body = ctk.CTkFrame(top_asist, fg_color="transparent")
-        f_asist_body.pack(fill="both", expand=True, padx=16, pady=12)
+        f_jig_body = ctk.CTkFrame(top_jig, fg_color="transparent")
+        f_jig_body.pack(fill="both", expand=True, padx=16, pady=12)
 
         recetas_disp = config_actual.get("recetas", [])
         nombres_recetas = [r.get("nombre", "") for r in recetas_disp] or ["Receta Base"]
         receta_actual_nom = config_actual.get("receta_activa", nombres_recetas[0])
         var_sel_rec = ctk.StringVar(value=receta_actual_nom)
 
-        f_fase_1 = ctk.CTkFrame(f_asist_body, fg_color="transparent")
-        f_fase_2 = ctk.CTkFrame(f_asist_body, fg_color="transparent")
-
-        # -------------------------------------------------------------
-        # FASE 1: SELECCIÓN DE RECETA
-        # -------------------------------------------------------------
         ctk.CTkLabel(
-            f_fase_1,
-            text="📋 Seleccione el programa o receta para este turno de producción:",
-            font=(FONT_MAIN, 11, "bold"),
+            f_jig_body,
+            text="📋 Seleccione el Jig / Receta para este turno de producción:",
+            font=(FONT_MAIN, 12, "bold"),
             text_color=COLOR_KOSTAL_DARK,
             anchor="w"
         ).pack(fill="x", pady=(0, 8))
 
-        card_rec_prev = ctk.CTkFrame(f_fase_1, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD)
-        card_rec_prev.pack(fill="both", expand=True, pady=(0, 12))
+        card_rec_prev = ctk.CTkFrame(f_jig_body, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD)
+        card_rec_prev.pack(fill="both", expand=True, pady=(0, 10))
 
         f_sel_row = ctk.CTkFrame(card_rec_prev, fg_color="transparent")
-        f_sel_row.pack(fill="x", padx=14, pady=12)
-        ctk.CTkLabel(f_sel_row, text="Receta / Jig:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_PRIMARY).pack(side="left", padx=(0, 10))
+        f_sel_row.pack(fill="x", padx=14, pady=10)
+        ctk.CTkLabel(f_sel_row, text="Jig Seleccionado:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_PRIMARY).pack(side="left", padx=(0, 10))
 
         f_detalles_rec = ctk.CTkFrame(card_rec_prev, fg_color="#F8FAFC", corner_radius=6, border_width=1, border_color="#E2E8F0")
-        f_detalles_rec.pack(fill="both", expand=True, padx=14, pady=(0, 12))
+        f_detalles_rec.pack(fill="both", expand=True, padx=14, pady=(0, 10))
 
         f_det_txt = ctk.CTkFrame(f_detalles_rec, fg_color="transparent")
         f_det_txt.pack(side="left", fill="both", expand=True, padx=12, pady=10)
 
-        lbl_det_nom = ctk.CTkLabel(f_det_txt, text="Programa: -", font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_NAVY, anchor="w")
+        lbl_det_nom = ctk.CTkLabel(f_det_txt, text="Jig: -", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_KOSTAL_NAVY, anchor="w")
         lbl_det_nom.pack(fill="x", pady=2)
-        lbl_det_pieza = ctk.CTkLabel(f_det_txt, text="Pieza: -", font=(FONT_MAIN, 10), text_color=TEXT_PRIMARY, anchor="w")
+        lbl_det_pieza = ctk.CTkLabel(f_det_txt, text="Pieza: -", font=(FONT_MAIN, 11), text_color=TEXT_PRIMARY, anchor="w")
         lbl_det_pieza.pack(fill="x", pady=1)
-        lbl_det_mod = ctk.CTkLabel(f_det_txt, text="Modelo: -", font=(FONT_MAIN, 10), text_color=TEXT_SECONDARY, anchor="w")
+        lbl_det_mod = ctk.CTkLabel(f_det_txt, text="Modelo: -", font=(FONT_MAIN, 11), text_color=TEXT_SECONDARY, anchor="w")
         lbl_det_mod.pack(fill="x", pady=1)
-        lbl_det_mat = ctk.CTkLabel(f_det_txt, text="Matriz Fixture: -", font=(FONT_MONO, 10, "bold"), text_color="#1E3A8A", anchor="w")
+        lbl_det_mat = ctk.CTkLabel(f_det_txt, text="Matriz Fixture: -", font=(FONT_MONO, 11, "bold"), text_color="#1E3A8A", anchor="w")
         lbl_det_mat.pack(fill="x", pady=2)
-        lbl_det_dist = ctk.CTkLabel(f_det_txt, text="Dist. C-C: -", font=(FONT_MONO, 9), text_color=TEXT_MUTED, anchor="w")
+        lbl_det_dist = ctk.CTkLabel(f_det_txt, text="Dist. C-C: -", font=(FONT_MONO, 10), text_color=TEXT_MUTED, anchor="w")
         lbl_det_dist.pack(fill="x", pady=1)
 
-        f_img_box = ctk.CTkFrame(f_detalles_rec, fg_color="#FFFFFF", corner_radius=6, border_width=1, border_color="#CBD5E1", width=140, height=115)
+        f_img_box = ctk.CTkFrame(f_detalles_rec, fg_color="#FFFFFF", corner_radius=6, border_width=1, border_color="#CBD5E1", width=125, height=105)
         f_img_box.pack(side="right", padx=12, pady=10)
         f_img_box.pack_propagate(False)
 
@@ -2310,7 +2269,7 @@ def abrir_asistente_inicio_sesion():
         def actualizar_preview_receta(nombre_rec):
             rec_obj = next((r for r in recetas_disp if r.get("nombre") == nombre_rec), recetas_disp[0] if recetas_disp else {})
             if rec_obj:
-                lbl_det_nom.configure(text=f"Programa: {rec_obj.get('nombre', '')}")
+                lbl_det_nom.configure(text=f"Jig: {rec_obj.get('nombre', '')}")
                 lbl_det_pieza.configure(text=f"Pieza: {rec_obj.get('pieza', '')}")
                 lbl_det_mod.configure(text=f"Modelo: {rec_obj.get('modelo', '')}")
                 fil = rec_obj.get("filas", 1)
@@ -2320,7 +2279,7 @@ def abrir_asistente_inicio_sesion():
                 lbl_det_dist.configure(text=f"Dist. C-C: ΔX={rec_obj.get('delta_x', 0):.1f} mm | ΔY={rec_obj.get('delta_y', 0):.1f} mm")
                 
                 img_path = rec_obj.get("imagen", "")
-                ctk_img = cargar_imagen(img_path, 130, 105)
+                ctk_img = cargar_imagen(img_path, 115, 95)
                 if ctk_img:
                     lbl_img_prev.configure(image=ctk_img, text="")
                 else:
@@ -2345,188 +2304,48 @@ def abrir_asistente_inicio_sesion():
 
         actualizar_preview_receta(var_sel_rec.get())
 
-        def pasar_a_fase_set0():
+        def confirmar_jig():
+            global cero_ha_sido_seteado
             rec_elegida = var_sel_rec.get()
             cargar_receta_por_nombre(rec_elegida)
-            if 'option_receta' in globals():
+            if 'option_receta' in globals() and option_receta:
                 option_receta.set(rec_elegida)
                 
-            f_fase_1.pack_forget()
-            lbl_paso_badge.configure(text="PASO 2 DE 2: AJUSTAR SET 0", fg_color="#FEF3C7", text_color="#92400E")
-            f_fase_2.pack(fill="both", expand=True)
-            actualizar_valores_fase_set0()
-
-        btn_fase1_sig = ctk.CTkButton(
-            f_fase_1,
-            text="▶  Confirmar Receta y Ajustar Set 0  ➔",
-            font=(FONT_MAIN, 12, "bold"),
-            fg_color=COLOR_KOSTAL_NAVY,
-            hover_color=COLOR_KOSTAL_ACCENT,
-            text_color="white",
-            height=42,
-            corner_radius=6,
-            command=pasar_a_fase_set0
-        )
-        btn_fase1_sig.pack(fill="x", pady=4)
-
-        # -------------------------------------------------------------
-        # FASE 2: AJUSTE DE SET 0
-        # -------------------------------------------------------------
-        ctk.CTkLabel(
-            f_fase_2,
-            text="↩ Calibre y confirme el origen de pintado (Set 0) para la Pieza 01:",
-            font=(FONT_MAIN, 11, "bold"),
-            text_color=COLOR_KOSTAL_DARK,
-            anchor="w"
-        ).pack(fill="x", pady=(0, 6))
-
-        card_set0 = ctk.CTkFrame(f_fase_2, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD)
-        card_set0.pack(fill="both", expand=True, pady=(0, 10))
-
-        f_s0_info = ctk.CTkFrame(card_set0, fg_color="#F0FDF4", corner_radius=6, border_width=1, border_color="#BBF7D0")
-        f_s0_info.pack(fill="x", padx=14, pady=10)
-
-        lbl_s0_guardado_txt = ctk.CTkLabel(
-            f_s0_info,
-            text=f"✓ SET 0 REGISTRADO:  X = {cero_guardado_x:.2f} mm   |   Y = {cero_guardado_y:.2f} mm",
-            font=(FONT_MONO, 11, "bold"),
-            text_color="#166534"
-        )
-        lbl_s0_guardado_txt.pack(padx=10, pady=8)
-
-        f_coord_grid = ctk.CTkFrame(card_set0, fg_color="transparent")
-        f_coord_grid.pack(fill="x", padx=14, pady=6)
-        f_coord_grid.columnconfigure(0, weight=1)
-        f_coord_grid.columnconfigure(1, weight=1)
-
-        f_bx = ctk.CTkFrame(f_coord_grid, fg_color="#F8FAFC", corner_radius=6, border_width=1, border_color="#E2E8F0")
-        f_bx.grid(row=0, column=0, padx=(0, 6), sticky="nsew")
-        ctk.CTkLabel(f_bx, text="Coordenada X (mm):", font=(FONT_MAIN, 9, "bold"), text_color=TEXT_MUTED).pack(anchor="w", padx=8, pady=(4, 0))
-        entry_asist_x = ctk.CTkEntry(f_bx, height=32, font=(FONT_MONO, 12, "bold"), fg_color="#FFFFFF", border_color=BORDER_CARD)
-        entry_asist_x.insert(0, f"{cero_guardado_x:.2f}")
-        entry_asist_x.pack(fill="x", padx=8, pady=(2, 6))
-
-        f_by = ctk.CTkFrame(f_coord_grid, fg_color="#F8FAFC", corner_radius=6, border_width=1, border_color="#E2E8F0")
-        f_by.grid(row=0, column=1, padx=(6, 0), sticky="nsew")
-        ctk.CTkLabel(f_by, text="Coordenada Y (mm):", font=(FONT_MAIN, 9, "bold"), text_color=TEXT_MUTED).pack(anchor="w", padx=8, pady=(4, 0))
-        entry_asist_y = ctk.CTkEntry(f_by, height=32, font=(FONT_MONO, 12, "bold"), fg_color="#FFFFFF", border_color=BORDER_CARD)
-        entry_asist_y.insert(0, f"{cero_guardado_y:.2f}")
-        entry_asist_y.pack(fill="x", padx=8, pady=(2, 6))
-
-        f_jog_rapido = ctk.CTkFrame(card_set0, fg_color="transparent")
-        f_jog_rapido.pack(fill="x", padx=14, pady=6)
-        
-        ctk.CTkLabel(f_jog_rapido, text="Movimiento Manual Rápido (Jog):", font=(FONT_MAIN, 9, "bold"), text_color=TEXT_MUTED).pack(side="left")
-
-        def jog_asist(eje, dir_val):
-            mover_cruzeta(eje, dir_val)
-            actualizar_valores_fase_set0()
-
-        f_jog_btns = ctk.CTkFrame(f_jog_rapido, fg_color="transparent")
-        f_jog_btns.pack(side="right")
-
-        for b_lbl, ax, dr in [("◀ X-", "X", -1), ("▶ X+", "X", 1), ("▲ Y+", "Y", 1), ("▼ Y-", "Y", -1)]:
-            ctk.CTkButton(
-                f_jog_btns,
-                text=b_lbl,
-                font=(FONT_MONO, 10, "bold"),
-                width=55,
-                height=28,
-                fg_color="#FFFFFF",
-                hover_color="#E2E8F0",
-                text_color=COLOR_KOSTAL_NAVY,
-                border_width=1,
-                border_color=BORDER_CARD,
-                corner_radius=4,
-                command=lambda a=ax, d=dr: jog_asist(a, d)
-            ).pack(side="left", padx=2)
-
-        def actualizar_valores_fase_set0():
-            try:
-                cur_x = float(caja_pos_x.get())
-                cur_y = float(caja_pos_y.get())
-                entry_asist_x.delete(0, tk.END); entry_asist_x.insert(0, f"{cur_x:.2f}")
-                entry_asist_y.delete(0, tk.END); entry_asist_y.insert(0, f"{cur_y:.2f}")
-            except Exception:
-                pass
-            lbl_s0_guardado_txt.configure(
-                text=f"✓ SET 0 REGISTRADO:  X = {cero_guardado_x:.2f} mm   |   Y = {cero_guardado_y:.2f} mm"
-            )
-
-        def aplicar_guardar_set0_asistente():
-            try:
-                nx = limitar_coord(float(entry_asist_x.get()))
-                ny = limitar_coord(float(entry_asist_y.get()))
-                caja_pos_x.delete(0, tk.END); caja_pos_x.insert(0, f"{nx:.2f}")
-                caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{ny:.2f}")
-                guardar_posicion_como_cero()
-                actualizar_valores_fase_set0()
-                lbl_s0_guardado_txt.configure(
-                    text=f"✓ NUEVO SET 0 FIJADO:  X = {nx:.2f} mm   |   Y = {ny:.2f} mm",
-                    text_color="#047857"
+            # Establecer Set 0 pendiente para la primera corrida de este Jig
+            cero_ha_sido_seteado = False
+            if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
+                lbl_indicador_set0.configure(
+                    text=f"⚠️ SET 0 PENDIENTE: Calibre origen para '{rec_elegida}' con JOG y presione '↩ Set 0'",
+                    text_color="#B45309"
                 )
-            except Exception as ex:
-                messagebox.showerror("Error", f"Valores no válidos para Set 0: {ex}")
-
-        btn_fijar_s0 = ctk.CTkButton(
-            card_set0,
-            text="↩  Fijar Posición como SET 0",
-            font=(FONT_MAIN, 11, "bold"),
-            fg_color=COLOR_OK,
-            hover_color=COLOR_OK_HOVER,
-            text_color="white",
-            height=34,
-            corner_radius=6,
-            command=aplicar_guardar_set0_asistente
-        )
-        btn_fijar_s0.pack(fill="x", padx=14, pady=8)
-
-        def finalizar_asistente():
-            top_asist.destroy()
-            resaltar_temporalmente_set0_y_home(4)
+            if 'f_cero_ind' in globals() and f_cero_ind:
+                f_cero_ind.configure(fg_color="#FEF3C7", border_color="#FDE68A")
+                
             lbl_estado.configure(
-                text=f"✓ Inicio completado: Programa '{var_sel_rec.get()}' y Set 0 (X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f}) listos.",
-                text_color=COLOR_OK
+                text=f"✓ Jig '{rec_elegida}' confirmado. Calibre Set 0 con la Cruceta JOG antes de iniciar el pintado.",
+                text_color=COLOR_WARN
             )
+            top_jig.destroy()
 
-        top_asist.protocol("WM_DELETE_WINDOW", finalizar_asistente)
+        top_jig.protocol("WM_DELETE_WINDOW", confirmar_jig)
 
-        f_fin_row = ctk.CTkFrame(f_fase_2, fg_color="transparent")
-        f_fin_row.pack(fill="x", pady=4)
-
-        btn_ir_home_asist = ctk.CTkButton(
-            f_fin_row,
-            text="🏠  Ir a Home (Opcional)",
-            font=(FONT_MAIN, 11, "bold"),
-            fg_color="#FFFFFF",
-            hover_color="#E2E8F0",
-            text_color=COLOR_KOSTAL_NAVY,
-            border_width=1,
-            border_color=BORDER_CARD,
-            height=40,
-            corner_radius=6,
-            command=ejecutar_home_general
-        )
-        btn_ir_home_asist.pack(side="left", fill="x", expand=True, padx=(0, 4))
-
-        btn_listo_prod = ctk.CTkButton(
-            f_fin_row,
-            text="✓  Confirmar y Comenzar Producción",
-            font=(FONT_MAIN, 11, "bold"),
+        btn_confirmar_jig = ctk.CTkButton(
+            f_jig_body,
+            text="✓  Confirmar Jig y Entrar al Panel",
+            font=(FONT_MAIN, 13, "bold"),
             fg_color=COLOR_KOSTAL_NAVY,
             hover_color=COLOR_KOSTAL_ACCENT,
             text_color="white",
-            height=40,
+            height=44,
             corner_radius=6,
-            command=finalizar_asistente
+            command=confirmar_jig
         )
-        btn_listo_prod.pack(side="right", fill="x", expand=True, padx=(4, 0))
-
-        # Iniciar mostrando fase 1
-        f_fase_1.pack(fill="both", expand=True)
+        btn_confirmar_jig.pack(fill="x", pady=4)
 
     except Exception as e:
-        print(f"Error al abrir asistente de inicio de sesión: {e}")
+        print(f"Error al abrir diálogo de selección de jig: {e}")
+
+abrir_asistente_inicio_sesion = abrir_dialogo_seleccion_jig
 
 def iniciar_sesion(usuario_seleccionado, rol="OPERADOR"):
     """
@@ -2565,9 +2384,13 @@ def iniciar_sesion(usuario_seleccionado, rol="OPERADOR"):
         f_cero_ind.configure(fg_color="#FEF3C7", border_color="#FDE68A")
         
     lbl_estado.configure(
-        text=f"✓ Sesión iniciada: {usuario_seleccionado} ({rol}) | Calibre Set 0 con cruceta JOG antes de pintar.",
+        text=f"✓ Sesión iniciada: {usuario_seleccionado} ({rol}) | Seleccione Jig y calibre Set 0 antes de pintar.",
         text_color=COLOR_OK
     )
+    
+    # REQUERIMIENTO: Solo que aparezca para seleccionar el jig al abrir sesión
+    ventana.after(350, abrir_dialogo_seleccion_jig)
+
 
 def procesar_login_formulario():
     """Valida usuario y contraseña. Solo detona INICIO si las credenciales son válidas"""
