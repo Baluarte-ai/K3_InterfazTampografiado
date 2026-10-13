@@ -296,6 +296,8 @@ else:
 # Estados visuales e Internos
 estado_pintar = False
 estado_stop = False
+paro_requiere_reset = False   # Requiere presionar RESET tras liberar el Paro
+paro_requiere_inicio = False  # Requiere presionar INICIO tras el RESET post-paro
 estado_manual = False
 maquina_en_home = False
 contador_ciclos_completados = 0
@@ -1421,9 +1423,35 @@ def iniciar_ciclo_general():
     """
     Al presionar INICIO:
     Activa únicamente la variable INICIO del PLC (no activa la cruzeta ni viaja a cero).
+    REQUERIMIENTO: Si se activó y desactivó STOP, valida que se haya presionado RESET antes de permitir INICIO.
     """
+    global paro_requiere_reset, paro_requiere_inicio
+    
+    if estado_stop:
+        lbl_estado.configure(text="🛑 Paro activado: Desactive el PARO primero.", text_color=COLOR_NOK)
+        messagebox.showwarning("Paro Activo", "El PARO de emergencia está activado. Debe liberarlo primero, luego presionar RESET e INICIO.")
+        return
+        
+    if paro_requiere_reset:
+        lbl_estado.configure(
+            text="⚠️ ACCIÓN REQUERIDA TRAS PARO: Presione primero 'RESET' antes de 'INICIO'.",
+            text_color=COLOR_WARN
+        )
+        messagebox.showwarning(
+            "Secuencia Post-Paro Requerida",
+            "⚠️ El PARO fue desactivado.\n\n"
+            "1. Presione primero el botón [RESET].\n"
+            "2. Posteriormente presione el botón [INICIO]."
+        )
+        return
+        
+    if paro_requiere_inicio:
+        paro_requiere_inicio = False
+        lbl_estado.configure(text="✓ Secuencia post-paro completada: Señal INICIO enviada al PLC.", text_color=COLOR_OK)
+    else:
+        lbl_estado.configure(text="▶ INICIO: Señal INICIO enviada al PLC (sin activar cruzeta).", text_color=COLOR_OK)
+        
     enviar_pulso("INICIO")
-    lbl_estado.configure(text="▶ INICIO: Señal INICIO enviada al PLC (sin activar cruzeta).", text_color=COLOR_OK)
 
 def ejecutar_reset_general():
     """
@@ -1431,12 +1459,23 @@ def ejecutar_reset_general():
     1. Envía el pulso RESET al PLC manteniéndolo activo 350 ms para que CODESYS lo detecte con certeza.
     2. Cancela el pintado activo (PINTAR=False) y apaga el botón de pintar.
     3. Desactiva el PARO (STOP=False) si estaba enclavado.
-    4. Reinicia la matriz de piezas (índice 0, todas 'pendiente').
-    5. Redibuja el fixture y actualiza los KPIs a 0.
-    6. Mantiene Set 0 y Home válidos.
+    4. Satisface el paso 1 tras paro, requiriendo ahora presionar INICIO.
+    5. Reinicia la matriz de piezas (índice 0, todas 'pendiente').
+    6. Redibuja el fixture y actualiza los KPIs a 0.
+    7. Mantiene Set 0 y Home válidos.
     """
     global estado_pintar, estado_stop, indice_matriz_actual, fixture_piezas_estado
+    global paro_requiere_reset, paro_requiere_inicio
     try:
+        # Transición tras paro: al presionar RESET, pasa a requerir INICIO
+        if paro_requiere_reset:
+            paro_requiere_reset = False
+            paro_requiere_inicio = True
+            lbl_estado.configure(
+                text="✓ RESET completado tras paro. Ahora presione 'INICIO' para continuar el ciclo.",
+                text_color=COLOR_OK
+            )
+            
         # 1. Pulso limpio de RESET al PLC (350 ms para garantizar lectura por el ciclo de CODESYS)
         if plc_conectado:
             nodos["RESET"].set_value(ua.Variant(True, ua.VariantType.Boolean))
@@ -1561,7 +1600,7 @@ def guardar_posicion_como_cero():
         lbl_estado.configure(text="✗ Error numérico al guardar Set 0.", text_color=COLOR_NOK)
 
 def alternar_stop():
-    global estado_stop
+    global estado_stop, paro_requiere_reset, paro_requiere_inicio
     try:
         estado_stop = not estado_stop 
         if plc_conectado:
@@ -1570,11 +1609,26 @@ def alternar_stop():
             nodos["STOP"].set_value(estado_stop)
             
         if estado_stop:
+            paro_requiere_reset = False
+            paro_requiere_inicio = False
             btn_stop.configure(text="🛑 PARO ACTIVADO", fg_color="#991B1B")
             lbl_estado.configure(text="🛑 PARO ACTIVADO EN EL SISTEMA", text_color=COLOR_NOK)
         else:
+            # REQUERIMIENTO: Al desactivar el stop, pedir presionar reset y luego inicio
+            paro_requiere_reset = True
+            paro_requiere_inicio = False
             btn_stop.configure(text="🛑 PARO", fg_color=COLOR_NOK)
-            lbl_estado.configure(text="✓ Paro Desactivado", text_color=COLOR_OK)
+            lbl_estado.configure(
+                text="⚠️ PARO DESACTIVADO: Requiere presionar 'RESET' y después 'INICIO'.",
+                text_color=COLOR_WARN
+            )
+            messagebox.showwarning(
+                "Paro Desactivado",
+                "⚠️ El PARO de emergencia ha sido desactivado.\n\n"
+                "Para reanudar la operación:\n"
+                "1. Presione el botón [RESET].\n"
+                "2. Posteriormente presione el botón [INICIO]."
+            )
     except Exception as e:
         lbl_estado.configure(text=f"✗ Error al alternar PARO: {e}", text_color=COLOR_NOK)
 
@@ -1686,6 +1740,16 @@ def alternar_pintar():
     global estado_pintar, indice_matriz_actual, maquina_en_home
     try:
         if not estado_pintar:
+            if estado_stop:
+                messagebox.showwarning("Paro Activo", "El PARO de emergencia está activado.")
+                return
+            if 'paro_requiere_reset' in globals() and paro_requiere_reset:
+                messagebox.showwarning("Secuencia Requerida Tras Paro", "El PARO fue desactivado. Debe presionar primero [RESET] y después [INICIO].")
+                return
+            if 'paro_requiere_inicio' in globals() and paro_requiere_inicio:
+                messagebox.showwarning("Secuencia Requerida Tras Paro", "Debe presionar [INICIO] tras el RESET para reanudar.")
+                return
+                
             # 1. VERIFICAR QUE SE HAYA CALIBRADO EL SET 0
             if not cero_ha_sido_seteado:
                 lbl_estado.configure(
@@ -1827,13 +1891,23 @@ def enviar_datos():
 def mover_cruzeta(eje, direccion):
     """
     Mueve el eje por cruzeta:
-    Toma la ubicación donde ya estaba ubicada la máquina y le suma (paso * direccion),
+    Toma la ubicación donde ya estaba ubicada la máquina y le suma (paso * dir_efectiva),
     evitando saltos abruptos. Limita entre 0.0 y 200.0 mm.
+    REQUERIMIENTO: Sentido invertido para el eje X y el eje Y.
     """
     global maquina_en_home
     if not estado_manual:
         lbl_estado.configure(text="⚠️ ATENCIÓN: Activa el MODO MANUAL primero.", text_color=COLOR_WARN)
         return
+        
+    if estado_stop:
+        lbl_estado.configure(text="🛑 PARO ACTIVO: No se puede mover los ejes.", text_color=COLOR_NOK)
+        return
+        
+    if 'paro_requiere_reset' in globals() and paro_requiere_reset:
+        lbl_estado.configure(text="⚠️ Paro liberado: Debe presionar primero 'RESET' y después 'INICIO'.", text_color=COLOR_WARN)
+        return
+        
     try:
         paso = float(caja_paso.get()) 
         
@@ -1849,14 +1923,17 @@ def mover_cruzeta(eje, direccion):
             ubicacion_x_actual = limitar_coord(float(caja_pos_x.get()))
             ubicacion_y_actual = limitar_coord(float(caja_pos_y.get()))
             
+        # REQUERIMIENTO: Invertir el sentido que dan las crucetas para el eje X y eje Y
+        dir_efectiva = -direccion
+            
         if eje == 'X':
-            # Sumar el paso de la cruzeta al valor donde YA ESTABA ubicado
-            nuevo_x = limitar_coord(ubicacion_x_actual + (paso * direccion))
+            # Sumar el paso de la cruzeta al valor donde YA ESTABA ubicado (sentido invertido)
+            nuevo_x = limitar_coord(ubicacion_x_actual + (paso * dir_efectiva))
             nuevo_y = ubicacion_y_actual
         elif eje == 'Y':
             nuevo_x = ubicacion_x_actual
-            # Sumar el paso de la cruzeta al valor donde YA ESTABA ubicado
-            nuevo_y = limitar_coord(ubicacion_y_actual + (paso * direccion))
+            # Sumar el paso de la cruzeta al valor donde YA ESTABA ubicado (sentido invertido)
+            nuevo_y = limitar_coord(ubicacion_y_actual + (paso * dir_efectiva))
         else:
             return
             
@@ -2192,6 +2269,21 @@ def alternar_columna_derecha():
             dock_tab_lateral.grid(row=0, column=2, sticky="ns", padx=(2, 0))
         body_grid.columnconfigure(1, weight=72)
         body_grid.columnconfigure(2, weight=0)
+
+def centrar_ventana(win, ancho, alto):
+    """Centra una ventana CTkToplevel en la pantalla de forma segura"""
+    try:
+        win.update_idletasks()
+        sw = win.winfo_screenwidth()
+        sh = win.winfo_screenheight()
+        x = max(0, int((sw - ancho) / 2))
+        y = max(0, int((sh - alto) / 2))
+        win.geometry(f"{ancho}x{alto}+{x}+{y}")
+    except Exception:
+        try:
+            win.geometry(f"{ancho}x{alto}")
+        except Exception:
+            pass
 
 def abrir_dialogo_seleccion_jig():
     """
@@ -2652,130 +2744,244 @@ total_piezas_sesion_acum = 0
 def abrir_dialogo_fin_de_hora():
     global kpis_fin_hora_registrados, piezas_ok_registradas, piezas_nok_registradas, calidad_registrada
     
-    dialogo = ctk.CTkToplevel(ventana)
-    dialogo.title("Registro de Fin de Hora")
-    dialogo.geometry("450x420")
-    dialogo.resizable(False, False)
-    dialogo.configure(fg_color=BG_MAIN)
-    dialogo.transient(ventana)
-    dialogo.grab_set()
-    centrar_ventana(dialogo, 450, 420)
-    
-    f_d_inner = ctk.CTkFrame(dialogo, fg_color=BG_CARD, corner_radius=12, border_width=1, border_color=BORDER_CARD)
-    f_d_inner.pack(padx=20, pady=20, fill="both", expand=True)
-    
-    ctk.CTkLabel(f_d_inner, text="⏱️  REGISTRO FIN DE HORA", font=(FONT_MAIN, 15, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(pady=(16, 4))
-    ctk.CTkLabel(f_d_inner, text="Ingrese manualmente las piezas OK y NO OK producidas.", font=(FONT_MAIN, 11), text_color=TEXT_SECONDARY).pack(pady=(0, 14))
-    
-    total_actual = total_piezas_sesion_acum
-    f_tot = ctk.CTkFrame(f_d_inner, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_LIGHT)
-    f_tot.pack(fill="x", padx=20, pady=(0, 14))
-    ctk.CTkLabel(f_tot, text="Total Piezas Producidas:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).pack(side="left", padx=12, pady=8)
-    lbl_tot_num = ctk.CTkLabel(f_tot, text=str(total_actual), font=(FONT_MONO, 14, "bold"), text_color=COLOR_KOSTAL_NAVY)
-    lbl_tot_num.pack(side="right", padx=12, pady=8)
-    
-    # Campo OK
-    f_ok_row = ctk.CTkFrame(f_d_inner, fg_color="transparent")
-    f_ok_row.pack(fill="x", padx=20, pady=4)
-    ctk.CTkLabel(f_ok_row, text="Piezas OK (Buenas):", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_OK, width=170, anchor="w").pack(side="left")
-    entry_ok = ctk.CTkEntry(f_ok_row, width=140, height=34, font=(FONT_MONO, 13, "bold"), justify="center", fg_color=BG_INPUT, border_color=COLOR_OK)
-    entry_ok.insert(0, str(total_actual) if not kpis_fin_hora_registrados else str(piezas_ok_registradas))
-    entry_ok.pack(side="right")
-    
-    # Campo NOK
-    f_nok_row = ctk.CTkFrame(f_d_inner, fg_color="transparent")
-    f_nok_row.pack(fill="x", padx=20, pady=4)
-    ctk.CTkLabel(f_nok_row, text="Piezas NOK (Defecto):", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_NOK, width=170, anchor="w").pack(side="left")
-    entry_nok = ctk.CTkEntry(f_nok_row, width=140, height=34, font=(FONT_MONO, 13, "bold"), justify="center", fg_color=BG_INPUT, border_color=BORDER_LIGHT)
-    entry_nok.insert(0, "0" if not kpis_fin_hora_registrados else str(piezas_nok_registradas))
-    entry_nok.pack(side="right")
-    
-    # Preview de % Calidad
-    lbl_prev_cal = ctk.CTkLabel(f_d_inner, text="% Calidad resultante: 100.0%", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_OK)
-    lbl_prev_cal.pack(pady=12)
-    
-    def recalcular_prev(event=None):
+    try:
+        dialogo = ctk.CTkToplevel(ventana)
+        dialogo.title("Registro de Fin de Hora")
+        dialogo.geometry("480x470")
+        dialogo.resizable(False, False)
+        dialogo.configure(fg_color=BG_MAIN)
+        dialogo.transient(ventana)
+        dialogo.grab_set()
+        centrar_ventana(dialogo, 480, 470)
+        
+        f_d_inner = ctk.CTkFrame(dialogo, fg_color=BG_CARD, corner_radius=12, border_width=1, border_color=BORDER_CARD)
+        f_d_inner.pack(padx=18, pady=18, fill="both", expand=True)
+        
+        ctk.CTkLabel(
+            f_d_inner, 
+            text="⏱️  REGISTRO DE FIN DE HORA", 
+            font=(FONT_MAIN, 15, "bold"), 
+            text_color=COLOR_KOSTAL_NAVY
+        ).pack(pady=(14, 2))
+        ctk.CTkLabel(
+            f_d_inner, 
+            text="Ingrese las piezas defectuosas (NO OK) y confirme las piezas buenas (OK).", 
+            font=(FONT_MAIN, 11), 
+            text_color=TEXT_SECONDARY
+        ).pack(pady=(0, 12))
+        
+        total_actual = total_piezas_sesion_acum
         try:
-            v_ok = int(entry_ok.get().strip() or "0")
-            v_nok = int(entry_nok.get().strip() or "0")
-            tot = v_ok + v_nok
-            if tot > 0:
-                cal = (v_ok / tot) * 100.0
-                c_clr = COLOR_OK if cal >= 95.0 else (COLOR_WARN if cal >= 85.0 else COLOR_NOK)
-                lbl_prev_cal.configure(text=f"% Calidad resultante: {cal:.1f}% (Total: {tot})", text_color=c_clr)
-            else:
-                lbl_prev_cal.configure(text="% Calidad resultante: 100.0%", text_color=COLOR_OK)
+            if 'lbl_kpi_total' in globals() and lbl_kpi_total:
+                txt_t = lbl_kpi_total.cget("text")
+                if txt_t.isdigit() and int(txt_t) > 0:
+                    total_actual = max(total_actual, int(txt_t))
         except Exception:
             pass
             
-    entry_ok.bind("<KeyRelease>", recalcular_prev)
-    entry_nok.bind("<KeyRelease>", recalcular_prev)
-    recalcular_prev()
-    
-    def guardar_fin_hora():
-        global kpis_fin_hora_registrados, piezas_ok_registradas, piezas_nok_registradas, calidad_registrada
-        try:
-            v_ok = int(entry_ok.get().strip())
-            v_nok = int(entry_nok.get().strip())
-            if v_ok < 0 or v_nok < 0:
-                messagebox.showerror("Error", "Los valores no pueden ser negativos.")
-                return
-        except ValueError:
-            messagebox.showerror("Error", "Por favor ingrese números enteros válidos para OK y NOK.")
-            return
+        f_tot = ctk.CTkFrame(f_d_inner, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_LIGHT)
+        f_tot.pack(fill="x", padx=18, pady=(0, 12))
+        ctk.CTkLabel(f_tot, text="Total Piezas del Turno:", font=(FONT_MAIN, 12, "bold"), text_color=TEXT_MUTED).pack(side="left", padx=12, pady=8)
+        lbl_tot_num = ctk.CTkLabel(f_tot, text=str(total_actual), font=(FONT_MONO, 15, "bold"), text_color=COLOR_KOSTAL_NAVY)
+        lbl_tot_num.pack(side="right", padx=12, pady=8)
+        
+        # Campo NOK (Defecto) primero con botones +/- para máxima rapidez operativa
+        f_nok_row = ctk.CTkFrame(f_d_inner, fg_color="transparent")
+        f_nok_row.pack(fill="x", padx=18, pady=6)
+        ctk.CTkLabel(
+            f_nok_row, 
+            text="Piezas NO OK (Defectos):", 
+            font=(FONT_MAIN, 12, "bold"), 
+            text_color=COLOR_NOK, 
+            width=175, 
+            anchor="w"
+        ).pack(side="left")
+        
+        f_nok_ctrl = ctk.CTkFrame(f_nok_row, fg_color="transparent")
+        f_nok_ctrl.pack(side="right")
+        
+        entry_nok = ctk.CTkEntry(
+            f_nok_ctrl, 
+            width=80, 
+            height=34, 
+            font=(FONT_MONO, 13, "bold"), 
+            justify="center", 
+            fg_color=BG_INPUT, 
+            border_color=COLOR_NOK
+        )
+        val_nok_init = piezas_nok_registradas if kpis_fin_hora_registrados else 0
+        entry_nok.insert(0, str(val_nok_init))
+        
+        def ajustar_nok(delta):
+            try:
+                cur = int(entry_nok.get().strip() or "0")
+            except Exception:
+                cur = 0
+            nuevo = max(0, min(total_actual, cur + delta))
+            entry_nok.delete(0, tk.END)
+            entry_nok.insert(0, str(nuevo))
+            # Sincronizar automáticamente OK
+            nuevo_ok = max(0, total_actual - nuevo)
+            entry_ok.delete(0, tk.END)
+            entry_ok.insert(0, str(nuevo_ok))
+            recalcular_prev()
             
-        tot = v_ok + v_nok
-        cal = (v_ok / tot * 100.0) if tot > 0 else 100.0
+        btn_nok_minus = ctk.CTkButton(
+            f_nok_ctrl, text="−", width=32, height=34, font=(FONT_MONO, 14, "bold"),
+            fg_color="#FEE2E2", hover_color="#FECACA", text_color=COLOR_NOK,
+            corner_radius=6, command=lambda: ajustar_nok(-1)
+        )
+        btn_nok_minus.pack(side="left", padx=(0, 4))
         
-        kpis_fin_hora_registrados = True
-        piezas_ok_registradas = v_ok
-        piezas_nok_registradas = v_nok
-        calidad_registrada = cal
+        entry_nok.pack(side="left")
         
-        # Actualizar visualmente la tarjeta de KPIs
-        if 'lbl_kpi_total' in globals():
-            lbl_kpi_total.configure(text=str(tot))
-        if 'lbl_kpi_ok' in globals():
-            lbl_kpi_ok.configure(text=str(v_ok))
-        if 'lbl_kpi_nok' in globals():
-            lbl_kpi_nok.configure(text=str(v_nok))
-        if 'lbl_kpi_calidad' in globals():
-            lbl_kpi_calidad.configure(text=f"{cal:.1f}%")
+        btn_nok_plus = ctk.CTkButton(
+            f_nok_ctrl, text="+", width=32, height=34, font=(FONT_MONO, 14, "bold"),
+            fg_color="#FEE2E2", hover_color="#FECACA", text_color=COLOR_NOK,
+            corner_radius=6, command=lambda: ajustar_nok(1)
+        )
+        btn_nok_plus.pack(side="left", padx=(4, 0))
         
-        # Registrar en historial de producción
-        nuevo_registro = {
-            "hora": datetime.now().strftime("%H:%M:%S"),
-            "fecha": datetime.now().strftime("%d/%m/%Y"),
-            "usuario": usuario_actual.get("nombre", "Operador") if 'usuario_actual' in globals() else "Operador",
-            "receta": config_actual.get("receta_activa", "Receta"),
-            "total": tot,
-            "ok": v_ok,
-            "nok": v_nok,
-            "calidad": f"{cal:.1f}%",
-            "duracion": lbl_op_session_timer.cget("text") if 'lbl_op_session_timer' in globals() else "00:00:00"
-        }
-        if 'REGISTROS_PRODUCCION' in globals():
-            REGISTROS_PRODUCCION.insert(0, nuevo_registro)
-            
-        lbl_estado.configure(
-            text=f"✓ Fin de hora registrado: Total={tot} | OK={v_ok} | NOK={v_nok} | Calidad={cal:.1f}%",
+        # Campo OK (Buenas)
+        f_ok_row = ctk.CTkFrame(f_d_inner, fg_color="transparent")
+        f_ok_row.pack(fill="x", padx=18, pady=6)
+        ctk.CTkLabel(
+            f_ok_row, 
+            text="Piezas OK (Aprobadas):", 
+            font=(FONT_MAIN, 12, "bold"), 
+            text_color=COLOR_OK, 
+            width=175, 
+            anchor="w"
+        ).pack(side="left")
+        
+        val_ok_init = piezas_ok_registradas if kpis_fin_hora_registrados else max(0, total_actual - val_nok_init)
+        entry_ok = ctk.CTkEntry(
+            f_ok_row, 
+            width=156, 
+            height=34, 
+            font=(FONT_MONO, 13, "bold"), 
+            justify="center", 
+            fg_color=BG_INPUT, 
+            border_color=COLOR_OK
+        )
+        entry_ok.insert(0, str(val_ok_init))
+        entry_ok.pack(side="right")
+        
+        # Preview de % Calidad
+        f_cal_box = ctk.CTkFrame(f_d_inner, fg_color="#F8FAFC", corner_radius=8, border_width=1, border_color="#E2E8F0")
+        f_cal_box.pack(fill="x", padx=18, pady=10)
+        lbl_prev_cal = ctk.CTkLabel(
+            f_cal_box, 
+            text="% Calidad resultante: 100.0%", 
+            font=(FONT_MAIN, 13, "bold"), 
             text_color=COLOR_OK
         )
-        dialogo.destroy()
-        messagebox.showinfo("Fin de Hora Registrado", f"Registro guardado con éxito:\n\n• Piezas OK: {v_ok}\n• Piezas NOK: {v_nok}\n• Total: {tot}\n• Calidad: {cal:.1f}%")
+        lbl_prev_cal.pack(pady=8)
         
-    btn_guardar = ctk.CTkButton(
-        f_d_inner,
-        text="💾  Guardar y Registrar",
-        font=(FONT_MAIN, 12, "bold"),
-        fg_color=COLOR_KOSTAL_NAVY,
-        hover_color=COLOR_KOSTAL_ACCENT,
-        text_color="white",
-        height=38,
-        corner_radius=6,
-        command=guardar_fin_hora
-    )
-    btn_guardar.pack(fill="x", padx=20, pady=(6, 12))
+        def recalcular_prev(event=None):
+            try:
+                v_ok = int(entry_ok.get().strip() or "0")
+                v_nok = int(entry_nok.get().strip() or "0")
+                tot = v_ok + v_nok
+                if tot > 0:
+                    cal = (v_ok / tot) * 100.0
+                    c_clr = COLOR_OK if cal >= 95.0 else (COLOR_WARN if cal >= 85.0 else COLOR_NOK)
+                    lbl_prev_cal.configure(text=f"% Calidad: {cal:.1f}%  (OK: {v_ok} | NOK: {v_nok} | Tot: {tot})", text_color=c_clr)
+                else:
+                    lbl_prev_cal.configure(text="% Calidad resultante: 100.0%", text_color=COLOR_OK)
+            except Exception:
+                pass
+                
+        def on_nok_key(event=None):
+            try:
+                v_nok = int(entry_nok.get().strip() or "0")
+                # Autoajustar OK según el total
+                v_ok = max(0, total_actual - v_nok)
+                entry_ok.delete(0, tk.END)
+                entry_ok.insert(0, str(v_ok))
+            except Exception:
+                pass
+            recalcular_prev()
+            
+        entry_nok.bind("<KeyRelease>", on_nok_key)
+        entry_ok.bind("<KeyRelease>", recalcular_prev)
+        recalcular_prev()
+        
+        def guardar_fin_hora():
+            global kpis_fin_hora_registrados, piezas_ok_registradas, piezas_nok_registradas, calidad_registrada
+            try:
+                v_ok = int(entry_ok.get().strip())
+                v_nok = int(entry_nok.get().strip())
+                if v_ok < 0 or v_nok < 0:
+                    messagebox.showerror("Error", "Los valores no pueden ser negativos.")
+                    return
+            except ValueError:
+                messagebox.showerror("Error", "Por favor ingrese números enteros válidos para OK y NO OK.")
+                return
+                
+            tot = v_ok + v_nok
+            cal = (v_ok / tot * 100.0) if tot > 0 else 100.0
+            
+            kpis_fin_hora_registrados = True
+            piezas_ok_registradas = v_ok
+            piezas_nok_registradas = v_nok
+            calidad_registrada = cal
+            
+            # Actualizar visualmente la tarjeta de KPIs en la pantalla del operador
+            if 'lbl_kpi_total' in globals():
+                lbl_kpi_total.configure(text=str(tot))
+            if 'lbl_kpi_ok' in globals():
+                lbl_kpi_ok.configure(text=str(v_ok))
+            if 'lbl_kpi_nok' in globals():
+                lbl_kpi_nok.configure(text=str(v_nok))
+            if 'lbl_kpi_calidad' in globals():
+                lbl_kpi_calidad.configure(text=f"{cal:.1f}%")
+            
+            # Registrar en historial de producción
+            nuevo_registro = {
+                "hora": datetime.now().strftime("%H:%M:%S"),
+                "fecha": datetime.now().strftime("%d/%m/%Y"),
+                "usuario": usuario_actual.get("nombre", "Operador") if 'usuario_actual' in globals() else "Operador",
+                "receta": config_actual.get("receta_activa", "Receta"),
+                "total": tot,
+                "ok": v_ok,
+                "nok": v_nok,
+                "calidad": f"{cal:.1f}%",
+                "duracion": lbl_op_session_timer.cget("text") if 'lbl_op_session_timer' in globals() else "00:00:00"
+            }
+            if 'REGISTROS_PRODUCCION' in globals():
+                REGISTROS_PRODUCCION.insert(0, nuevo_registro)
+                
+            lbl_estado.configure(
+                text=f"✓ Fin de hora registrado: Total={tot} | OK={v_ok} | NOK={v_nok} | Calidad={cal:.1f}%",
+                text_color=COLOR_OK
+            )
+            dialogo.destroy()
+            messagebox.showinfo(
+                "Fin de Hora Registrado", 
+                f"Registro guardado con éxito:\n\n• Piezas OK: {v_ok}\n• Piezas NOK: {v_nok}\n• Total: {tot}\n• Calidad: {cal:.1f}%"
+            )
+            
+        btn_guardar = ctk.CTkButton(
+            f_d_inner,
+            text="💾  Guardar y Registrar Fin de Hora",
+            font=(FONT_MAIN, 13, "bold"),
+            fg_color=COLOR_KOSTAL_NAVY,
+            hover_color=COLOR_KOSTAL_ACCENT,
+            text_color="white",
+            height=42,
+            corner_radius=8,
+            command=guardar_fin_hora
+        )
+        btn_guardar.pack(fill="x", padx=18, pady=(8, 10))
+        
+        # Poner foco directo en el campo NOK para que el operador solo escriba el número
+        entry_nok.focus_set()
+        entry_nok.select_range(0, tk.END)
+        
+    except Exception as ex:
+        print(f"Error al abrir diálogo de fin de hora: {ex}")
+        messagebox.showerror("Error", f"No se pudo abrir el registro de fin de hora: {ex}")
 
 btn_fin_hora = ctk.CTkButton(
     hdr_mid,
