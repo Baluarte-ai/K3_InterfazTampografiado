@@ -304,7 +304,7 @@ receta_actual_calibrada = config_actual.get("receta_activa", "")
 # Coordenadas cargadas y limitadas entre 0.0 y 200.0
 cero_guardado_x = limitar_coord(config_actual.get("cero_guardado_x", 0.0))
 cero_guardado_y = limitar_coord(config_actual.get("cero_guardado_y", 0.0))
-cero_ha_sido_seteado = True if (cero_guardado_x > 0.0 or cero_guardado_y > 0.0) else False
+cero_ha_sido_seteado = False  # Requiere calibrar y confirmar Set 0 antes de pintar en cada turno
 ultimo_estado_pintado = False
 ultimo_estado_sensor_y = False
 
@@ -1089,10 +1089,8 @@ def iniciar_tutorial_interactivo(obligatorio=False, usuario_obj=None):
                     "• 5. Fin de Ciclo, Reset y Paro de Emergencia\n\n"
                     "La estación se encuentra autorizada para operar."
                 )
-                ventana.after(500, abrir_asistente_inicio_sesion)
             else:
                 lbl_estado.configure(text="✓ Tutorial interactivo finalizado con éxito.", text_color=COLOR_OK)
-                ventana.after(500, abrir_asistente_inicio_sesion)
 
         _fn_mostrar_paso = mostrar_paso_actual
         _fn_navegar_paso = navegar_paso
@@ -1540,11 +1538,13 @@ def guardar_posicion_como_cero():
         actualizar_coordenadas_matriz()
         cero_ha_sido_seteado = True
         
-        if 'lbl_indicador_set0' in globals():
-            lbl_indicador_set0.configure(text=f"CERO PINTADO: X={cero_guardado_x:.2f}  Y={cero_guardado_y:.2f} mm", text_color="#065F46")
-        if 'lbl_cero_jog_val' in globals():
+        if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
+            lbl_indicador_set0.configure(text=f"✓ CERO PINTADO LISTO: X={cero_guardado_x:.2f}  Y={cero_guardado_y:.2f} mm", text_color="#065F46")
+        if 'f_cero_ind' in globals() and f_cero_ind:
+            f_cero_ind.configure(fg_color="#ECFDF5", border_color="#A7F3D0")
+        if 'lbl_cero_jog_val' in globals() and lbl_cero_jog_val:
             lbl_cero_jog_val.configure(text=f"X = {cero_guardado_x:.2f} mm   |   Y = {cero_guardado_y:.2f} mm")
-        lbl_estado.configure(text=f"✓ Set 0 guardado permanente en X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f}.", text_color=COLOR_OK)
+        lbl_estado.configure(text=f"✓ Set 0 calibrado exitosamente en X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f} mm. Listo para pintar.", text_color=COLOR_OK)
         if '_tutorial_activo' in globals() and _tutorial_activo and _paso_tutorial_actual == 2:
             notificar_accion_tutorial(2, delay_ms=800)
     except ValueError:
@@ -1680,14 +1680,15 @@ def alternar_pintar():
             # 1. VERIFICAR QUE PRIMERO SE HAYA SETEADO EL 0
             if not cero_ha_sido_seteado:
                 lbl_estado.configure(
-                    text="⚠️ ACCIÓN REQUERIDA (1/2): Debe realizar primero el 'Set 0' antes de iniciar el pintado.",
+                    text="⚠️ ACCIÓN REQUERIDA: Debe calibrar el 'Set 0' con la cruceta JOG antes de poder iniciar el pintado.",
                     text_color=COLOR_WARN
                 )
                 messagebox.showwarning(
-                    "Requisito 1 de Pintado",
-                    "No se puede iniciar el pintado sin haber configurado el Set 0.\n\n"
-                    "▶ Paso 1: Ubique la posición del cabezal y presione '↩ Set 0'.\n"
-                    "▶ Paso 2: Presione '🏠 Ir a home'."
+                    "Calibración de Set 0 Requerida",
+                    "⚠️ No se puede iniciar el pintado sin calibrar el Set 0.\n\n"
+                    "1. Posicione la máquina con la Cruceta JOG en el origen de pintado (Pieza 01).\n"
+                    "2. Presione el botón '↩ Set 0' en el panel de control.\n"
+                    "3. Posteriormente presione '🎨 INICIO DE PINTADO'."
                 )
                 return
                 
@@ -2552,15 +2553,21 @@ def iniciar_sesion(usuario_seleccionado, rol="OPERADOR"):
     frame_login.pack_forget()
     frame_admin.pack_forget()
     frame_operador.pack(fill="both", expand=True)
-    lbl_estado.configure(text=f"✓ Login correcto: {usuario_seleccionado} ({rol}) | Variable INICIO detonada.", text_color=COLOR_OK)
-
-    # REQUERIMIENTO OBLIGATORIO: Si es usuario nuevo, ejecutar tutorial paso a paso obligatoriamente
-    usr_obj = next((u for u in USUARIOS_SISTEMA if u.get("nombre") == usuario_seleccionado), None)
-    if usr_obj and not usr_obj.get("tutorial_completado", True):
-        ventana.after(500, lambda uo=usr_obj: abrir_tutorial_proceso(obligatorio=True, usuario_obj=uo))
-    else:
-        # REQUERIMIENTO: Al abrir sesión, pedir elegir receta y enseguida ajustar Set 0
-        ventana.after(350, abrir_asistente_inicio_sesion)
+    
+    global cero_ha_sido_seteado
+    cero_ha_sido_seteado = False
+    if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
+        lbl_indicador_set0.configure(
+            text="⚠️ SET 0 PENDIENTE: Calibre con Cruceta JOG y presione '↩ Set 0'",
+            text_color="#B45309"
+        )
+    if 'f_cero_ind' in globals() and f_cero_ind:
+        f_cero_ind.configure(fg_color="#FEF3C7", border_color="#FDE68A")
+        
+    lbl_estado.configure(
+        text=f"✓ Sesión iniciada: {usuario_seleccionado} ({rol}) | Calibre Set 0 con cruceta JOG antes de pintar.",
+        text_color=COLOR_OK
+    )
 
 def procesar_login_formulario():
     """Valida usuario y contraseña. Solo detona INICIO si las credenciales son válidas"""
@@ -3144,13 +3151,19 @@ actualizar_imagen_pieza_proceso(rec_obj_activa.get("imagen", ""))
 
 lbl_piezas_realizadas = fila_info(f_proc_b, "Piezas Realizadas:", f"00 / {matriz_total:02d}", COLOR_KOSTAL_NAVY, mono=True)
 
-f_cero_ind = ctk.CTkFrame(f_proc_b, fg_color="#ECFDF5", corner_radius=6, border_width=1, border_color="#A7F3D0")
+f_cero_ind = ctk.CTkFrame(
+    f_proc_b, 
+    fg_color="#ECFDF5" if cero_ha_sido_seteado else "#FEF3C7", 
+    corner_radius=6, 
+    border_width=1, 
+    border_color="#A7F3D0" if cero_ha_sido_seteado else "#FDE68A"
+)
 f_cero_ind.pack(fill="x", pady=4)
 lbl_indicador_set0 = ctk.CTkLabel(
     f_cero_ind, 
-    text=f"CERO PINTADO: X={cero_guardado_x:.2f}  Y={cero_guardado_y:.2f} mm",
-    font=(FONT_MONO, 10, "bold"),
-    text_color="#065F46"
+    text=f"✓ CERO PINTADO LISTO: X={cero_guardado_x:.2f}  Y={cero_guardado_y:.2f} mm" if cero_ha_sido_seteado else "⚠️ SET 0 PENDIENTE: Calibre con JOG y presione '↩ Set 0'",
+    font=(FONT_MONO, 11, "bold"),
+    text_color="#065F46" if cero_ha_sido_seteado else "#B45309"
 )
 lbl_indicador_set0.pack(pady=4)
 
