@@ -2641,13 +2641,13 @@ ventana.minsize(1100, 720)
 ventana.configure(fg_color=BG_MAIN)
 ventana.protocol("WM_DELETE_WINDOW", cerrar_aplicacion)
 
-img_logo_kostal_login = cargar_imagen("LogoKostal.webp", 280, 55)
-img_logo_baluarte_login = cargar_imagen("LOGO_BALUARTE.png", 170, 36)
-img_logo_kostal_hdr = cargar_imagen("LogoKostal.webp", 140, 26)
-img_logo_baluarte_panel = cargar_imagen("LOGO_BALUARTE.png", 140, 26)
+img_logo_kostal_login = cargar_imagen("LogoKostal.webp", 290, 60)
+img_logo_baluarte_login = cargar_imagen("LOGO_BALUARTE.png", 220, 52)
+img_logo_kostal_hdr = cargar_imagen("LogoKostal.webp", 150, 30)
+img_logo_baluarte_panel = cargar_imagen("LOGO_BALUARTE.png", 270, 68)
 
 # ------------------------------------------------------------------------------
-# 5.1. PANTALLA 1: LOGIN CON VER/OCULTAR CONTRASEÑA
+# 5.1. PANTALLA 1: LOGIN LIMPIO CON VER/OCULTAR CONTRASEÑA
 # ------------------------------------------------------------------------------
 frame_login = ctk.CTkFrame(ventana, fg_color=BG_MAIN, corner_radius=0)
 frame_login.pack(fill="both", expand=True)
@@ -2658,33 +2658,33 @@ card_login = ctk.CTkFrame(
     corner_radius=12, 
     border_width=1, 
     border_color=BORDER_CARD,
-    width=480
+    width=490
 )
 card_login.place(relx=0.5, rely=0.5, anchor="center")
 
 f_login_inner = ctk.CTkFrame(card_login, fg_color="transparent")
-f_login_inner.pack(padx=42, pady=34, fill="both")
+f_login_inner.pack(padx=44, pady=38, fill="both")
 
 if img_logo_kostal_login:
     ctk.CTkLabel(f_login_inner, image=img_logo_kostal_login, text="").pack(pady=(0, 10))
 else:
-    ctk.CTkLabel(f_login_inner, text="KOSTAL", font=(FONT_MAIN, 26, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(pady=(0, 6))
+    ctk.CTkLabel(f_login_inner, text="KOSTAL", font=(FONT_MAIN, 28, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(pady=(0, 6))
 
 ctk.CTkLabel(
     f_login_inner, 
     text="SISTEMA HMI DE INSPECCIÓN", 
-    font=(FONT_MAIN, 18, "bold"), 
+    font=(FONT_MAIN, 19, "bold"), 
     text_color=COLOR_KOSTAL_NAVY
 ).pack(pady=(0, 2))
 
 ctk.CTkLabel(
     f_login_inner, 
     text="Línea de Ensamblado & Calidad KOSTAL", 
-    font=(FONT_MAIN, 12), 
+    font=(FONT_MAIN, 13), 
     text_color=TEXT_SECONDARY
-).pack(pady=(0, 20))
+).pack(pady=(0, 22))
 
-ctk.CTkLabel(f_login_inner, text="Usuario", font=(FONT_MAIN, 12, "bold"), text_color=TEXT_PRIMARY, anchor="w").pack(fill="x", pady=(4, 2))
+ctk.CTkLabel(f_login_inner, text="Usuario", font=(FONT_MAIN, 13, "bold"), text_color=TEXT_PRIMARY, anchor="w").pack(fill="x", pady=(4, 2))
 option_usuario = ctk.CTkOptionMenu(
     f_login_inner,
     values=[f"{u['nombre']} ({u['rol']})" for u in USUARIOS_SISTEMA],
@@ -2695,16 +2695,16 @@ option_usuario = ctk.CTkOptionMenu(
     dropdown_fg_color=BG_CARD,
     dropdown_text_color=TEXT_PRIMARY,
     corner_radius=6,
-    height=40,
-    font=(FONT_MAIN, 12)
+    height=42,
+    font=(FONT_MAIN, 13)
 )
 option_usuario.set(f"{USUARIOS_SISTEMA[0]['nombre']} ({USUARIOS_SISTEMA[0]['rol']})")
-option_usuario.pack(fill="x", pady=(0, 12))
+option_usuario.pack(fill="x", pady=(0, 14))
 
-ctk.CTkLabel(f_login_inner, text="Contraseña", font=(FONT_MAIN, 12, "bold"), text_color=TEXT_PRIMARY, anchor="w").pack(fill="x", pady=(4, 2))
+ctk.CTkLabel(f_login_inner, text="Contraseña", font=(FONT_MAIN, 13, "bold"), text_color=TEXT_PRIMARY, anchor="w").pack(fill="x", pady=(4, 2))
 
 f_pass_row = ctk.CTkFrame(f_login_inner, fg_color="transparent")
-f_pass_row.pack(fill="x", pady=(0, 20))
+f_pass_row.pack(fill="x", pady=(0, 22))
 
 entry_pass = ctk.CTkEntry(
     f_pass_row,
@@ -2714,18 +2714,18 @@ entry_pass = ctk.CTkEntry(
     border_width=1,
     text_color=TEXT_PRIMARY,
     corner_radius=6,
-    height=40,
-    font=(FONT_MAIN, 13)
+    height=42,
+    font=(FONT_MAIN, 14),
+    placeholder_text="Ingrese su contraseña"
 )
-entry_pass.insert(0, "1234")
 entry_pass.pack(side="left", fill="x", expand=True)
 
 btn_ver_pass = ctk.CTkButton(
     f_pass_row,
     text="👁",
-    width=40,
-    height=40,
-    font=(FONT_MAIN, 14),
+    width=42,
+    height=42,
+    font=(FONT_MAIN, 15),
     fg_color=BG_INPUT,
     hover_color=BORDER_LIGHT,
     text_color=TEXT_PRIMARY,
@@ -2739,57 +2739,15 @@ btn_ver_pass.pack(side="left", padx=(6, 0))
 btn_iniciar_sesion = ctk.CTkButton(
     f_login_inner,
     text="Iniciar Sesión  ➜",
-    font=(FONT_MAIN, 13, "bold"),
+    font=(FONT_MAIN, 14, "bold"),
     fg_color=COLOR_KOSTAL_NAVY,
     hover_color=COLOR_KOSTAL_ACCENT,
     text_color="white",
     corner_radius=6,
-    height=44,
+    height=46,
     command=procesar_login_formulario
 )
-btn_iniciar_sesion.pack(fill="x", pady=(0, 16))
-
-# Accesos directos DEMO (rellenan credenciales válidas e inician sesión detonando INICIO)
-box_demo = ctk.CTkFrame(f_login_inner, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_LIGHT)
-box_demo.pack(fill="x", pady=4)
-
-ctk.CTkLabel(box_demo, text="Accesos Directos de Simulación (DEMO):", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).pack(pady=(8, 4))
-
-def login_demo_usuario(nombre, rol, password):
-    option_usuario.set(f"{nombre} ({rol})")
-    entry_pass.delete(0, tk.END)
-    entry_pass.insert(0, password)
-    procesar_login_formulario()
-
-btn_demo_op = ctk.CTkButton(
-    box_demo,
-    text="👤 Juan Pérez (OPERADOR)",
-    font=(FONT_MAIN, 11, "bold"),
-    fg_color=BG_CARD,
-    hover_color=BORDER_LIGHT,
-    text_color=COLOR_KOSTAL_NAVY,
-    border_width=1,
-    border_color=BORDER_CARD,
-    corner_radius=6,
-    height=34,
-    command=lambda: login_demo_usuario("Juan Pérez", "OPERADOR", "1234")
-)
-btn_demo_op.pack(fill="x", padx=12, pady=3)
-
-btn_demo_adm = ctk.CTkButton(
-    box_demo,
-    text="🛡️ Carlos H. (ADMIN)",
-    font=(FONT_MAIN, 11, "bold"),
-    fg_color=BG_CARD,
-    hover_color=BORDER_LIGHT,
-    text_color=COLOR_KOSTAL_NAVY,
-    border_width=1,
-    border_color=BORDER_CARD,
-    corner_radius=6,
-    height=34,
-    command=lambda: login_demo_usuario("Carlos Hernández", "ADMIN", "admin")
-)
-btn_demo_adm.pack(fill="x", padx=12, pady=(3, 10))
+btn_iniciar_sesion.pack(fill="x", pady=(0, 8))
 
 f_foot = ctk.CTkFrame(f_login_inner, fg_color="transparent")
 f_foot.pack(fill="x", pady=(14, 0))
@@ -2855,17 +2813,151 @@ btn_ir_admin = ctk.CTkButton(
 )
 btn_ir_admin.pack(side="left", padx=6, pady=8)
 
+kpis_fin_hora_registrados = False
+piezas_ok_registradas = 0
+piezas_nok_registradas = 0
+calidad_registrada = 100.0
+total_piezas_sesion_acum = 0
+
+def abrir_dialogo_fin_de_hora():
+    global kpis_fin_hora_registrados, piezas_ok_registradas, piezas_nok_registradas, calidad_registrada
+    
+    dialogo = ctk.CTkToplevel(ventana)
+    dialogo.title("Registro de Fin de Hora")
+    dialogo.geometry("450x420")
+    dialogo.resizable(False, False)
+    dialogo.configure(fg_color=BG_MAIN)
+    dialogo.transient(ventana)
+    dialogo.grab_set()
+    centrar_ventana(dialogo, 450, 420)
+    
+    f_d_inner = ctk.CTkFrame(dialogo, fg_color=BG_CARD, corner_radius=12, border_width=1, border_color=BORDER_CARD)
+    f_d_inner.pack(padx=20, pady=20, fill="both", expand=True)
+    
+    ctk.CTkLabel(f_d_inner, text="⏱️  REGISTRO FIN DE HORA", font=(FONT_MAIN, 15, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(pady=(16, 4))
+    ctk.CTkLabel(f_d_inner, text="Ingrese manualmente las piezas OK y NO OK producidas.", font=(FONT_MAIN, 11), text_color=TEXT_SECONDARY).pack(pady=(0, 14))
+    
+    total_actual = total_piezas_sesion_acum
+    f_tot = ctk.CTkFrame(f_d_inner, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_LIGHT)
+    f_tot.pack(fill="x", padx=20, pady=(0, 14))
+    ctk.CTkLabel(f_tot, text="Total Piezas Producidas:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).pack(side="left", padx=12, pady=8)
+    lbl_tot_num = ctk.CTkLabel(f_tot, text=str(total_actual), font=(FONT_MONO, 14, "bold"), text_color=COLOR_KOSTAL_NAVY)
+    lbl_tot_num.pack(side="right", padx=12, pady=8)
+    
+    # Campo OK
+    f_ok_row = ctk.CTkFrame(f_d_inner, fg_color="transparent")
+    f_ok_row.pack(fill="x", padx=20, pady=4)
+    ctk.CTkLabel(f_ok_row, text="Piezas OK (Buenas):", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_OK, width=170, anchor="w").pack(side="left")
+    entry_ok = ctk.CTkEntry(f_ok_row, width=140, height=34, font=(FONT_MONO, 13, "bold"), justify="center", fg_color=BG_INPUT, border_color=COLOR_OK)
+    entry_ok.insert(0, str(total_actual) if not kpis_fin_hora_registrados else str(piezas_ok_registradas))
+    entry_ok.pack(side="right")
+    
+    # Campo NOK
+    f_nok_row = ctk.CTkFrame(f_d_inner, fg_color="transparent")
+    f_nok_row.pack(fill="x", padx=20, pady=4)
+    ctk.CTkLabel(f_nok_row, text="Piezas NOK (Defecto):", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_NOK, width=170, anchor="w").pack(side="left")
+    entry_nok = ctk.CTkEntry(f_nok_row, width=140, height=34, font=(FONT_MONO, 13, "bold"), justify="center", fg_color=BG_INPUT, border_color=BORDER_LIGHT)
+    entry_nok.insert(0, "0" if not kpis_fin_hora_registrados else str(piezas_nok_registradas))
+    entry_nok.pack(side="right")
+    
+    # Preview de % Calidad
+    lbl_prev_cal = ctk.CTkLabel(f_d_inner, text="% Calidad resultante: 100.0%", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_OK)
+    lbl_prev_cal.pack(pady=12)
+    
+    def recalcular_prev(event=None):
+        try:
+            v_ok = int(entry_ok.get().strip() or "0")
+            v_nok = int(entry_nok.get().strip() or "0")
+            tot = v_ok + v_nok
+            if tot > 0:
+                cal = (v_ok / tot) * 100.0
+                c_clr = COLOR_OK if cal >= 95.0 else (COLOR_WARN if cal >= 85.0 else COLOR_NOK)
+                lbl_prev_cal.configure(text=f"% Calidad resultante: {cal:.1f}% (Total: {tot})", text_color=c_clr)
+            else:
+                lbl_prev_cal.configure(text="% Calidad resultante: 100.0%", text_color=COLOR_OK)
+        except Exception:
+            pass
+            
+    entry_ok.bind("<KeyRelease>", recalcular_prev)
+    entry_nok.bind("<KeyRelease>", recalcular_prev)
+    recalcular_prev()
+    
+    def guardar_fin_hora():
+        global kpis_fin_hora_registrados, piezas_ok_registradas, piezas_nok_registradas, calidad_registrada
+        try:
+            v_ok = int(entry_ok.get().strip())
+            v_nok = int(entry_nok.get().strip())
+            if v_ok < 0 or v_nok < 0:
+                messagebox.showerror("Error", "Los valores no pueden ser negativos.")
+                return
+        except ValueError:
+            messagebox.showerror("Error", "Por favor ingrese números enteros válidos para OK y NOK.")
+            return
+            
+        tot = v_ok + v_nok
+        cal = (v_ok / tot * 100.0) if tot > 0 else 100.0
+        
+        kpis_fin_hora_registrados = True
+        piezas_ok_registradas = v_ok
+        piezas_nok_registradas = v_nok
+        calidad_registrada = cal
+        
+        # Actualizar visualmente la tarjeta de KPIs
+        if 'lbl_kpi_total' in globals():
+            lbl_kpi_total.configure(text=str(tot))
+        if 'lbl_kpi_ok' in globals():
+            lbl_kpi_ok.configure(text=str(v_ok))
+        if 'lbl_kpi_nok' in globals():
+            lbl_kpi_nok.configure(text=str(v_nok))
+        if 'lbl_kpi_calidad' in globals():
+            lbl_kpi_calidad.configure(text=f"{cal:.1f}%")
+        
+        # Registrar en historial de producción
+        nuevo_registro = {
+            "hora": datetime.now().strftime("%H:%M:%S"),
+            "fecha": datetime.now().strftime("%d/%m/%Y"),
+            "usuario": usuario_actual.get("nombre", "Operador") if 'usuario_actual' in globals() else "Operador",
+            "receta": config_actual.get("receta_activa", "Receta"),
+            "total": tot,
+            "ok": v_ok,
+            "nok": v_nok,
+            "calidad": f"{cal:.1f}%",
+            "duracion": lbl_op_session_timer.cget("text") if 'lbl_op_session_timer' in globals() else "00:00:00"
+        }
+        if 'REGISTROS_PRODUCCION' in globals():
+            REGISTROS_PRODUCCION.insert(0, nuevo_registro)
+            
+        lbl_estado.configure(
+            text=f"✓ Fin de hora registrado: Total={tot} | OK={v_ok} | NOK={v_nok} | Calidad={cal:.1f}%",
+            text_color=COLOR_OK
+        )
+        dialogo.destroy()
+        messagebox.showinfo("Fin de Hora Registrado", f"Registro guardado con éxito:\n\n• Piezas OK: {v_ok}\n• Piezas NOK: {v_nok}\n• Total: {tot}\n• Calidad: {cal:.1f}%")
+        
+    btn_guardar = ctk.CTkButton(
+        f_d_inner,
+        text="💾  Guardar y Registrar",
+        font=(FONT_MAIN, 12, "bold"),
+        fg_color=COLOR_KOSTAL_NAVY,
+        hover_color=COLOR_KOSTAL_ACCENT,
+        text_color="white",
+        height=38,
+        corner_radius=6,
+        command=guardar_fin_hora
+    )
+    btn_guardar.pack(fill="x", padx=20, pady=(6, 12))
+
 btn_fin_hora = ctk.CTkButton(
     hdr_mid,
-    text="⏳ Fin Hora",
-    font=(FONT_MAIN, 10, "bold"),
-    fg_color=COLOR_PURPLE,
-    hover_color=COLOR_PURPLE_HOVER,
+    text="⏱️ Fin Hora",
+    font=(FONT_MAIN, 11, "bold"),
+    fg_color=COLOR_KOSTAL_NAVY,
+    hover_color=COLOR_KOSTAL_ACCENT,
     text_color="white",
     corner_radius=6,
     height=28,
-    width=90,
-    command=lambda: messagebox.showinfo("Fin Hora", "Jornada y tiempo de sesión registrados.")
+    width=95,
+    command=abrir_dialogo_fin_de_hora
 )
 btn_fin_hora.pack(side="left", padx=(0, 6), pady=8)
 
@@ -3064,8 +3156,8 @@ lbl_indicador_set0.pack(pady=4)
 
 f_ses = ctk.CTkFrame(f_proc_b, fg_color="transparent")
 f_ses.pack(fill="x", pady=2)
-ctk.CTkLabel(f_ses, text="Tiempo Sesión:", font=(FONT_MAIN, 10), text_color=TEXT_SECONDARY).pack(side="left")
-lbl_op_session_timer = ctk.CTkLabel(f_ses, text="00:00:00", font=(FONT_MONO, 11, "bold"), text_color=COLOR_KOSTAL_ACCENT)
+ctk.CTkLabel(f_ses, text="Tiempo Sesión:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
+lbl_op_session_timer = ctk.CTkLabel(f_ses, text="00:00:00", font=(FONT_MONO, 13, "bold"), text_color=COLOR_KOSTAL_ACCENT)
 lbl_op_session_timer.pack(side="right")
 
 f_kpis_box = ctk.CTkFrame(f_proc_b, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_LIGHT)
@@ -3073,16 +3165,29 @@ f_kpis_box.pack(fill="x", pady=4)
 
 def crear_kpi_item(parent, lbl_txt, val_init, c_txt):
     kb = ctk.CTkFrame(parent, fg_color="transparent")
-    kb.pack(side="left", expand=True, fill="both", pady=4)
-    ctk.CTkLabel(kb, text=lbl_txt, font=(FONT_MAIN, 8, "bold"), text_color=TEXT_MUTED).pack()
-    lbl_v = ctk.CTkLabel(kb, text=val_init, font=(FONT_MONO, 11, "bold"), text_color=c_txt)
-    lbl_v.pack()
+    kb.pack(side="left", expand=True, fill="both", pady=6)
+    ctk.CTkLabel(kb, text=lbl_txt, font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).pack()
+    lbl_v = ctk.CTkLabel(kb, text=val_init, font=(FONT_MONO, 15, "bold"), text_color=c_txt)
+    lbl_v.pack(pady=(2, 0))
     return lbl_v
 
 lbl_kpi_total   = crear_kpi_item(f_kpis_box, "TOTAL", "0", TEXT_PRIMARY)
-lbl_kpi_ok      = crear_kpi_item(f_kpis_box, "OK", "0", COLOR_OK)
-lbl_kpi_nok     = crear_kpi_item(f_kpis_box, "NOK", "0", COLOR_NOK)
-lbl_kpi_calidad = crear_kpi_item(f_kpis_box, "% CALIDAD", "100.0%", COLOR_OK)
+lbl_kpi_ok      = crear_kpi_item(f_kpis_box, "OK", "-", COLOR_OK)
+lbl_kpi_nok     = crear_kpi_item(f_kpis_box, "NOK", "-", COLOR_NOK)
+lbl_kpi_calidad = crear_kpi_item(f_kpis_box, "% CALIDAD", "-", COLOR_OK)
+
+btn_fin_de_hora = ctk.CTkButton(
+    f_proc_b,
+    text="⏱️  Registrar Fin de Hora",
+    font=(FONT_MAIN, 11, "bold"),
+    fg_color=COLOR_KOSTAL_NAVY,
+    hover_color=COLOR_KOSTAL_ACCENT,
+    text_color="white",
+    height=34,
+    corner_radius=6,
+    command=abrir_dialogo_fin_de_hora
+)
+btn_fin_de_hora.pack(fill="x", pady=(3, 6))
 
 # 2. Control Principal: Botón Maestro de Pintado (Grande y Circular)
 card_marcha = crear_card_moderna(col_1, "Control Principal de Pintado")
@@ -3097,38 +3202,26 @@ f_pintar_center.pack(expand=True, fill="both")
 btn_pintar = ctk.CTkButton(
     f_pintar_center,
     text="🎨\nINICIO DE\nPINTADO\n[OFF]",
-    font=(FONT_MAIN, 12, "bold"),
+    font=(FONT_MAIN, 13, "bold"),
     fg_color=COLOR_KOSTAL_NAVY,
     hover_color=COLOR_KOSTAL_ACCENT,
     text_color="white",
-    corner_radius=60,
-    width=120,
-    height=120,
+    corner_radius=62,
+    width=124,
+    height=124,
     border_width=3,
     border_color="#CBD5E1",
     command=alternar_pintar
 )
-btn_pintar.pack(pady=(4, 6))
-
-lbl_pintar_badge = ctk.CTkLabel(
-    f_pintar_center,
-    text="● BOTÓN PRINCIPAL DE CICLO",
-    font=(FONT_MAIN, 9, "bold"),
-    text_color=COLOR_KOSTAL_NAVY,
-    fg_color=BG_INPUT,
-    corner_radius=4,
-    padx=8,
-    pady=2
-)
-lbl_pintar_badge.pack(pady=(0, 4))
+btn_pintar.pack(pady=10)
 
 # Baluarte Card
 card_bal_izq = ctk.CTkFrame(col_1, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_CARD)
 card_bal_izq.pack(fill="x", pady=(6, 0))
 f_bal_in = ctk.CTkFrame(card_bal_izq, fg_color="transparent")
-f_bal_in.pack(padx=12, pady=6, fill="x")
+f_bal_in.pack(padx=12, pady=10, fill="x")
 if img_logo_baluarte_panel:
-    ctk.CTkLabel(f_bal_in, image=img_logo_baluarte_panel, text="").pack(side="left", expand=True)
+    ctk.CTkLabel(f_bal_in, image=img_logo_baluarte_panel, text="").pack(expand=True)
 
 # ==============================================================================
 # COLUMNA 2 (CENTRAL): ESTADO DEL FIXTURE (3x5) + DIAGNÓSTICO
@@ -3141,10 +3234,10 @@ card_fixture = crear_card_moderna(
     f"Estado del Fixture (Matriz {matriz_filas} × {matriz_cols})",
     btn_widget=lambda h: ctk.CTkButton(
         h, 
-        text="🛠️ Recetas Admin", 
-        width=120, 
-        height=22, 
-        font=(FONT_MAIN, 9, "bold"), 
+        text="🛠️ Recetario Admin", 
+        width=130, 
+        height=24, 
+        font=(FONT_MAIN, 10, "bold"), 
         fg_color=COLOR_KOSTAL_NAVY, 
         hover_color=COLOR_KOSTAL_ACCENT, 
         text_color="white", 
@@ -3161,7 +3254,7 @@ f_matriz_info_bar.pack(fill="x", padx=8, pady=(4, 2))
 lbl_matriz_dim_badge = ctk.CTkLabel(
     f_matriz_info_bar,
     text=f"📐 MATRIZ: {matriz_filas} × {matriz_cols} ({matriz_total} PTS)",
-    font=(FONT_MAIN, 9, "bold"),
+    font=(FONT_MAIN, 10, "bold"),
     fg_color=COLOR_KOSTAL_NAVY,
     text_color="white",
     corner_radius=4,
@@ -3173,7 +3266,7 @@ lbl_matriz_dim_badge.pack(side="left", padx=4, pady=3)
 lbl_ciclo_badge = ctk.CTkLabel(
     f_matriz_info_bar,
     text=f"🏁 CICLOS: {contador_ciclos_completados}",
-    font=(FONT_MAIN, 9, "bold"),
+    font=(FONT_MAIN, 10, "bold"),
     fg_color=COLOR_PURPLE_SOFT,
     text_color=COLOR_PURPLE_TEXT,
     corner_radius=4,
@@ -3185,34 +3278,34 @@ lbl_ciclo_badge.pack(side="left", padx=4, pady=3)
 lbl_matriz_dist_badge = ctk.CTkLabel(
     f_matriz_info_bar,
     text=f"↔ Centro a Centro X: {matriz_delta_x:.1f} mm   |   ↕ Centro a Centro Y: {matriz_delta_y:.1f} mm   |   ↗ Diagonal: {matriz_dist_diag:.2f} mm",
-    font=(FONT_MONO, 9, "bold"),
+    font=(FONT_MONO, 10, "bold"),
     text_color=COLOR_KOSTAL_ACCENT
 )
 lbl_matriz_dist_badge.pack(side="left", padx=8, pady=3)
 
-def simular_trigger_pintado(event=None):
-    if not plc_conectado:
-        nodos["PINTADO"].set_value(True)
-        lbl_estado.configure(text="🎯 Gatillo PINTADO disparado en simulación (Flanco de subida)", text_color=COLOR_OK)
-        ventana.after(250, lambda: nodos["PINTADO"].set_value(False))
-    else:
-        enviar_pulso("PINTADO")
-    if '_tutorial_activo' in globals() and _tutorial_activo and _paso_tutorial_actual == 4:
-        notificar_accion_tutorial(4, delay_ms=850)
+coords_visibles_todas = True
+def alternar_todas_coordenadas():
+    global coords_visibles_todas
+    coords_visibles_todas = not coords_visibles_todas
+    for i in range(matriz_total):
+        coordenadas_visibles_map[i] = coords_visibles_todas
+    dibujar_fixture_moderno()
+    estado_str = "visibles" if coords_visibles_todas else "ocultas"
+    lbl_estado.configure(text=f"🔍 Coordenadas de la matriz: {estado_str}", text_color=COLOR_KOSTAL_ACCENT)
 
-btn_sim_trigger = ctk.CTkButton(
+btn_toggle_coords = ctk.CTkButton(
     f_matriz_info_bar,
-    text="🎯 Disparar Gatillo (PINTADO)",
-    font=(FONT_MAIN, 8, "bold"),
-    width=145,
-    height=22,
-    fg_color=COLOR_OK_SOFT,
-    hover_color=COLOR_OK,
-    text_color=COLOR_OK_TEXT,
+    text="🔍 Coords",
+    font=(FONT_MAIN, 9, "bold"),
+    width=85,
+    height=24,
+    fg_color=COLOR_KOSTAL_NAVY,
+    hover_color=COLOR_KOSTAL_ACCENT,
+    text_color="white",
     corner_radius=4,
-    command=simular_trigger_pintado
+    command=alternar_todas_coordenadas
 )
-btn_sim_trigger.pack(side="right", padx=6, pady=3)
+btn_toggle_coords.pack(side="right", padx=6, pady=3)
 
 # ------------------------------------------------------------------------------
 # BARRA DE TELEMETRÍA Y RECEPCIÓN PLC EN VIVO (DIAGNÓSTICO & PRUEBAS DE MOVIMIENTO)
@@ -3286,8 +3379,11 @@ btn_probar_mov.pack(side="right", padx=6, pady=3)
 canvas_fixture = tk.Canvas(card_fixture, bg="#FFFFFF", highlightthickness=0, height=225)
 canvas_fixture.pack(fill="both", expand=True, padx=8, pady=4)
 
+coordenadas_visibles_map = {i: True for i in range(100)}
+coordenadas_pill_bboxes = {}
+
 def al_click_en_pieza_fixture(event):
-    """Permite hacer clic sobre cualquier tarjeta de la matriz para probar su envío directo"""
+    """Permite hacer clic sobre la lupa para ocultar/ver coordenadas o sobre la tarjeta para probar su envío directo"""
     try:
         filas = max(1, matriz_filas)
         cols = max(1, matriz_cols)
@@ -3311,6 +3407,14 @@ def al_click_en_pieza_fixture(event):
             x2 = x1 + card_w
             y2 = y1 + card_h
             if x1 <= event.x <= x2 and y1 <= event.y <= y2:
+                # Comprobar si hizo clic en el área de la pastilla / lupa de la coordenada
+                if i in coordenadas_pill_bboxes:
+                    px1, py1, px2, py2 = coordenadas_pill_bboxes[i]
+                    if px1 <= event.x <= px2 and py1 <= event.y <= py2:
+                        coordenadas_visibles_map[i] = not coordenadas_visibles_map.get(i, True)
+                        dibujar_fixture_moderno()
+                        return
+                # De lo contrario, enviar la coordenada al PLC
                 probar_enviar_pieza_especifica(i)
                 break
     except Exception:
@@ -3322,40 +3426,49 @@ canvas_fixture.bind("<Button-1>", al_click_en_pieza_fixture)
 fixture_piezas_estado = ["pendiente"] * matriz_total
 
 def actualizar_kpis_fixture():
+    global total_piezas_sesion_acum
     ok_cnt = sum(1 for s in fixture_piezas_estado if s == "ok")
-    nok_cnt = sum(1 for s in fixture_piezas_estado if s == "nok")
-    act_cnt = sum(1 for s in fixture_piezas_estado if s == "activa")
-    total_proc = ok_cnt + nok_cnt + act_cnt
-    calidad = (ok_cnt / (ok_cnt + nok_cnt) * 100.0) if (ok_cnt + nok_cnt) > 0 else 100.0
+    
+    total_piezas_sesion_acum = (contador_ciclos_completados * matriz_total) + ok_cnt
     
     if 'lbl_kpi_total' in globals():
-        lbl_kpi_total.configure(text=str(total_proc))
-    if 'lbl_kpi_ok' in globals():
-        lbl_kpi_ok.configure(text=str(ok_cnt))
-    if 'lbl_kpi_nok' in globals():
-        lbl_kpi_nok.configure(text=str(nok_cnt))
-    if 'lbl_kpi_calidad' in globals():
-        lbl_kpi_calidad.configure(text=f"{calidad:.1f}%")
+        lbl_kpi_total.configure(text=str(total_piezas_sesion_acum))
+        
     if 'lbl_piezas_realizadas' in globals():
-        lbl_piezas_realizadas.configure(text=f"{total_proc:02d} / {matriz_total:02d}")
+        lbl_piezas_realizadas.configure(text=f"{ok_cnt:02d} / {matriz_total:02d}")
+        
+    # Solo mostrar OK, NOK y % CALIDAD si ya se registraron en Fin de Hora
+    if kpis_fin_hora_registrados:
+        if 'lbl_kpi_ok' in globals():
+            lbl_kpi_ok.configure(text=str(piezas_ok_registradas))
+        if 'lbl_kpi_nok' in globals():
+            lbl_kpi_nok.configure(text=str(piezas_nok_registradas))
+        if 'lbl_kpi_calidad' in globals():
+            lbl_kpi_calidad.configure(text=f"{calidad_registrada:.1f}%")
+    else:
+        if 'lbl_kpi_ok' in globals():
+            lbl_kpi_ok.configure(text="-")
+        if 'lbl_kpi_nok' in globals():
+            lbl_kpi_nok.configure(text="-")
+        if 'lbl_kpi_calidad' in globals():
+            lbl_kpi_calidad.configure(text="-")
 
 f_leg = ctk.CTkFrame(card_fixture, fg_color="transparent")
 f_leg.pack(fill="x", padx=10, pady=(2, 6))
 for colr, txt in [
     ("#94A3B8", "Pendiente"),
     ("#2563EB", "Activa"),
-    (COLOR_OK, "Procesada OK"),
-    (COLOR_NOK, "Procesada NOK")
+    (COLOR_OK, "Procesada")
 ]:
     fi = ctk.CTkFrame(f_leg, fg_color="transparent")
-    fi.pack(side="left", padx=4)
-    ctk.CTkLabel(fi, text="●", font=(FONT_MAIN, 11), text_color=colr).pack(side="left")
-    ctk.CTkLabel(fi, text=f" {txt}", font=(FONT_MAIN, 9, "bold"), text_color=TEXT_MUTED).pack(side="left")
+    fi.pack(side="left", padx=5)
+    ctk.CTkLabel(fi, text="●", font=(FONT_MAIN, 13), text_color=colr).pack(side="left")
+    ctk.CTkLabel(fi, text=f" {txt}", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).pack(side="left")
 
 ctk.CTkLabel(
     f_leg,
-    text="💡 Clic en cualquier pieza para enviar su coordenada directo al PLC",
-    font=(FONT_MAIN, 8, "bold"),
+    text="💡 Clic en 🔍 para ocultar/ver coordenada  |  Clic en tarjeta para enviar a PLC",
+    font=(FONT_MAIN, 10, "bold"),
     text_color=COLOR_KOSTAL_ACCENT
 ).pack(side="right", padx=6)
 
@@ -3383,6 +3496,7 @@ def dibujar_fixture_moderno():
     ruta_img = receta_activa.get("imagen", "") if receta_activa else ""
     
     rad = max(2, min(10, int(card_h * 0.18)))
+    coordenadas_pill_bboxes.clear()
     
     for i in range(total_piezas):
         r = i // cols
@@ -3395,21 +3509,16 @@ def dibujar_fixture_moderno():
         st = fixture_piezas_estado[i] if i < len(fixture_piezas_estado) else "pendiente"
         cx, cy = matriz_coordenadas[i] if i < len(matriz_coordenadas) else (0.0, 0.0)
         
-        # Colores idénticos al Mockup Oficial KOSTAL (Imagen 5)
+        # Colores idénticos al Mockup Oficial KOSTAL (Sin punto ni fondo rojo NOK en matriz)
         if st == "activa":
             c_bg = "#EFF6FF"      # Azul claro de selección
             c_border = "#2563EB"  # Azul vivo de contorno
             c_txt = "#1E3A8A"     # Azul marino
             bw = 2
-        elif st == "ok":
+        elif st in ("ok", "nok"):
             c_bg = "#F0FDF4"      # Verde pastel
             c_border = "#10B981"  # Verde esmeralda OK
             c_txt = "#065F46"     # Verde texto
-            bw = 2
-        elif st == "nok":
-            c_bg = "#FEF2F2"      # Rojo pastel
-            c_border = "#EF4444"  # Rojo NOK
-            c_txt = "#991B1B"     # Rojo texto
             bw = 2
         else:
             c_bg = "#FFFFFF"      # Blanco puro pendiente
@@ -3437,7 +3546,7 @@ def dibujar_fixture_moderno():
         # 1. Número secuencial a la izquierda (01, 02, 03...)
         num_x = x1 + card_w * 0.25
         num_y = y1 + card_h * 0.28
-        font_sz = max(9, min(13, int(card_h * 0.26)))
+        font_sz = max(9, min(14, int(card_h * 0.26)))
         canvas_fixture.create_text(
             num_x, num_y,
             text=f"{i+1:02d}",
@@ -3445,7 +3554,7 @@ def dibujar_fixture_moderno():
             fill=c_txt
         )
         
-        # 2. Coordenadas a las que se envía este punto (X e Y) debajo del número
+        # 2. Coordenadas a las que se envía este punto (X e Y) debajo del número con LUPA 🔍
         coord_x = x1 + card_w * 0.25
         coord_y = y1 + card_h * 0.68
         
@@ -3456,24 +3565,37 @@ def dibujar_fixture_moderno():
         px2 = coord_x + pill_w / 2
         py2 = coord_y + pill_h / 2
         
+        # Guardar coordenadas de la pastilla para alternar con clic
+        coordenadas_pill_bboxes[i] = (px1, py1, px2, py2)
+        
         if st == "activa":
             c_pbg, c_pbd, c_ptxt = "#DBEAFE", "#93C5FD", "#1E40AF"
-        elif st == "ok":
+        elif st in ("ok", "nok"):
             c_pbg, c_pbd, c_ptxt = "#DCFCE7", "#86EFAC", "#065F46"
-        elif st == "nok":
-            c_pbg, c_pbd, c_ptxt = "#FEE2E2", "#FCA5A5", "#991B1B"
         else:
             c_pbg, c_pbd, c_ptxt = "#F1F5F9", "#CBD5E1", "#475569"
             
         canvas_fixture.create_rectangle(px1, py1, px2, py2, fill=c_pbg, outline=c_pbd, width=1)
-        font_sz_c = max(7, min(9, int(card_h * 0.16)))
-        canvas_fixture.create_text(
-            coord_x, coord_y,
-            text=f"X:{cx:.1f}\nY:{cy:.1f}",
-            font=(FONT_MONO, font_sz_c, "bold"),
-            fill=c_ptxt,
-            justify="center"
-        )
+        font_sz_c = max(8, min(10, int(card_h * 0.17)))
+        
+        # Si la coordenada está visible, mostrar 🔍 y valores; si está oculta, mostrar 🔍 y viñetas
+        es_visible_coord = coordenadas_visibles_map.get(i, True)
+        if es_visible_coord:
+            canvas_fixture.create_text(
+                coord_x, coord_y,
+                text=f"🔍\nX:{cx:.1f}\nY:{cy:.1f}",
+                font=(FONT_MONO, font_sz_c, "bold"),
+                fill=c_ptxt,
+                justify="center"
+            )
+        else:
+            canvas_fixture.create_text(
+                coord_x, coord_y,
+                text="🔍\n••••",
+                font=(FONT_MONO, font_sz_c + 1, "bold"),
+                fill=c_ptxt,
+                justify="center"
+            )
         
         # 3. Ícono / Imagen de la pieza a la derecha
         icon_x = x2 - card_w * 0.28
@@ -3489,10 +3611,8 @@ def dibujar_fixture_moderno():
             ir = d_icon / 2.0
             if st == "activa":
                 dfill, dout = "#3B82F6", "#1D4ED8"
-            elif st == "ok":
+            elif st in ("ok", "nok"):
                 dfill, dout = "#10B981", "#047857"
-            elif st == "nok":
-                dfill, dout = "#EF4444", "#B91C1C"
             else:
                 dfill, dout = "#E2E8F0", "#94A3B8"
             
@@ -3508,17 +3628,15 @@ def dibujar_fixture_moderno():
                 fill=dfill, outline=dout, smooth=True
             )
             
-        # 4. Marcador de estado y recepción PLC en esquina superior derecha
+        # 4. Marcador de estado y recepción PLC en esquina superior derecha (sin rojo NOK)
         badge_x = x2 - 8
         badge_y = y1 + 9
         if st == "activa":
             recibida_plc = ultimo_plc_rx_ok if 'ultimo_plc_rx_ok' in globals() else True
             tag_txt = "▶ RX✓" if recibida_plc else "▶ TX"
-            canvas_fixture.create_text(badge_x - 6, badge_y, text=tag_txt, font=(FONT_MAIN, 7, "bold"), fill="#2563EB")
-        elif st == "ok":
-            canvas_fixture.create_text(badge_x, badge_y, text="✓", font=(FONT_MAIN, 8, "bold"), fill=COLOR_OK)
-        elif st == "nok":
-            canvas_fixture.create_text(badge_x, badge_y, text="✕", font=(FONT_MAIN, 8, "bold"), fill=COLOR_NOK)
+            canvas_fixture.create_text(badge_x - 6, badge_y, text=tag_txt, font=(FONT_MAIN, 8, "bold"), fill="#2563EB")
+        elif st in ("ok", "nok"):
+            canvas_fixture.create_text(badge_x, badge_y, text="✓", font=(FONT_MAIN, 9, "bold"), fill=COLOR_OK)
 
 # Redimensionamiento suave (con debounce de 25ms para evitar trabas o jank)
 _fixture_resize_timer = None
@@ -3547,11 +3665,11 @@ def crear_pill_ctk(parent, r, c, txt_init, cspan=1):
     lbl = ctk.CTkLabel(
         parent,
         text=txt_init,
-        font=(FONT_MAIN, 10, "bold"),
+        font=(FONT_MAIN, 11, "bold"),
         fg_color="#F8FAFC",
         text_color="#334155",
         corner_radius=6,
-        height=34
+        height=36
     )
     lbl.grid(row=r, column=c, columnspan=cspan, padx=3, pady=3, sticky="ew")
     return lbl
@@ -3581,9 +3699,9 @@ card_jog = crear_card_moderna(
     btn_widget=lambda h: ctk.CTkButton(
         h, 
         text="▶ Ocultar", 
-        width=70, 
-        height=22, 
-        font=(FONT_MAIN, 9, "bold"), 
+        width=75, 
+        height=24, 
+        font=(FONT_MAIN, 10, "bold"), 
         fg_color="#E2E8F0", 
         hover_color=BORDER_CARD, 
         text_color=TEXT_PRIMARY, 
@@ -3601,20 +3719,20 @@ f_jog_b.pack(fill="both", expand=True, padx=12, pady=8)
 # ------------------------------------------------------------------------------
 f_sec_op_hdr = ctk.CTkFrame(f_jog_b, fg_color=BG_INPUT, corner_radius=6, border_width=1, border_color=BORDER_LIGHT)
 f_sec_op_hdr.pack(fill="x", pady=(0, 6))
-ctk.CTkLabel(f_sec_op_hdr, text="⚡ OPERACIÓN Y AVANCE", font=(FONT_MAIN, 9, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left", padx=8, pady=3)
+ctk.CTkLabel(f_sec_op_hdr, text="⚡ OPERACIÓN Y AVANCE", font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left", padx=8, pady=4)
 
 # Botón Modo Auto / Manual (destacado)
 btn_manual = ctk.CTkButton(
     f_jog_b,
     text="⚙ MODO: AUTO",
-    font=(FONT_MAIN, 12, "bold"),
+    font=(FONT_MAIN, 13, "bold"),
     fg_color=COLOR_KOSTAL_NAVY,
     hover_color=COLOR_KOSTAL_ACCENT,
     text_color="white",
     border_width=1,
     border_color=COLOR_KOSTAL_LIGHT,
     corner_radius=8,
-    height=38,
+    height=40,
     command=alternar_manual
 )
 btn_manual.pack(fill="x", pady=(0, 6))
@@ -3622,11 +3740,11 @@ btn_manual.pack(fill="x", pady=(0, 6))
 # Velocidad General
 f_vel_row = ctk.CTkFrame(f_jog_b, fg_color="transparent")
 f_vel_row.pack(fill="x", pady=(0, 8))
-ctk.CTkLabel(f_vel_row, text="Velocidad General:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
-caja_vel = ctk.CTkEntry(f_vel_row, width=65, height=28, font=(FONT_MONO, 10, "bold"), justify="center", corner_radius=4)
+ctk.CTkLabel(f_vel_row, text="Velocidad General:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
+caja_vel = ctk.CTkEntry(f_vel_row, width=70, height=30, font=(FONT_MONO, 11, "bold"), justify="center", corner_radius=4)
 caja_vel.insert(0, str(config_actual.get("velocidad", "100")))
 caja_vel.pack(side="right", padx=(2, 0))
-ctk.CTkLabel(f_vel_row, text="mm/s", font=(FONT_MAIN, 9), text_color=TEXT_MUTED).pack(side="right")
+ctk.CTkLabel(f_vel_row, text="mm/s", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).pack(side="right")
 
 # Divisor sutil
 sep_jog = ctk.CTkFrame(f_jog_b, fg_color=BORDER_LIGHT, height=1)
@@ -3637,16 +3755,16 @@ sep_jog.pack(fill="x", pady=(2, 8))
 # ------------------------------------------------------------------------------
 f_sec_jog_hdr = ctk.CTkFrame(f_jog_b, fg_color=BG_INPUT, corner_radius=6, border_width=1, border_color=BORDER_LIGHT)
 f_sec_jog_hdr.pack(fill="x", pady=(0, 6))
-ctk.CTkLabel(f_sec_jog_hdr, text="🕹️ MOVIMIENTO MANUAL JOG", font=(FONT_MAIN, 9, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left", padx=8, pady=3)
+ctk.CTkLabel(f_sec_jog_hdr, text="🕹️ MOVIMIENTO MANUAL JOG", font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left", padx=8, pady=4)
 
 # Paso de Movimiento
 f_step_row = ctk.CTkFrame(f_jog_b, fg_color="transparent")
 f_step_row.pack(fill="x", pady=(0, 6))
-ctk.CTkLabel(f_step_row, text="Paso de Movimiento:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
-caja_paso = ctk.CTkEntry(f_step_row, width=60, height=28, font=(FONT_MONO, 11, "bold"), justify="center", corner_radius=4)
+ctk.CTkLabel(f_step_row, text="Paso de Movimiento:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
+caja_paso = ctk.CTkEntry(f_step_row, width=65, height=30, font=(FONT_MONO, 11, "bold"), justify="center", corner_radius=4)
 caja_paso.insert(0, str(config_actual.get("paso_jog", "5.0")))
 caja_paso.pack(side="right", padx=(2, 0))
-ctk.CTkLabel(f_step_row, text="mm", font=(FONT_MAIN, 9), text_color=TEXT_MUTED).pack(side="right")
+ctk.CTkLabel(f_step_row, text="mm", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).pack(side="right")
 
 # Cruzeta y Coordenadas
 f_jog_ctrl = ctk.CTkFrame(f_jog_b, fg_color="transparent")
@@ -3655,17 +3773,17 @@ f_jog_ctrl.pack(fill="x", pady=2)
 f_coord_box = ctk.CTkFrame(f_jog_ctrl, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_LIGHT)
 f_coord_box.pack(side="left", padx=(0, 10), pady=2)
 
-ctk.CTkLabel(f_coord_box, text="COORDENADAS (0-200)", font=(FONT_MAIN, 7, "bold"), text_color=TEXT_MUTED).pack(padx=8, pady=(4, 0))
+ctk.CTkLabel(f_coord_box, text="COORDENADAS (0-200)", font=(FONT_MAIN, 8, "bold"), text_color=TEXT_MUTED).pack(padx=8, pady=(4, 0))
 fc_x = ctk.CTkFrame(f_coord_box, fg_color="transparent")
 fc_x.pack(fill="x", padx=8, pady=1)
-ctk.CTkLabel(fc_x, text="X:", font=(FONT_MAIN, 10, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left")
-lbl_jog_coord_x = ctk.CTkLabel(fc_x, text=f"{cero_guardado_x:.2f}", font=(FONT_MONO, 12, "bold"), text_color=TEXT_PRIMARY)
+ctk.CTkLabel(fc_x, text="X:", font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left")
+lbl_jog_coord_x = ctk.CTkLabel(fc_x, text=f"{cero_guardado_x:.2f}", font=(FONT_MONO, 13, "bold"), text_color=TEXT_PRIMARY)
 lbl_jog_coord_x.pack(side="right")
 
 fc_y = ctk.CTkFrame(f_coord_box, fg_color="transparent")
 fc_y.pack(fill="x", padx=8, pady=(1, 4))
-ctk.CTkLabel(fc_y, text="Y:", font=(FONT_MAIN, 10, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left")
-lbl_jog_coord_y = ctk.CTkLabel(fc_y, text=f"{cero_guardado_y:.2f}", font=(FONT_MONO, 12, "bold"), text_color=TEXT_PRIMARY)
+ctk.CTkLabel(fc_y, text="Y:", font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left")
+lbl_jog_coord_y = ctk.CTkLabel(fc_y, text=f"{cero_guardado_y:.2f}", font=(FONT_MONO, 13, "bold"), text_color=TEXT_PRIMARY)
 lbl_jog_coord_y.pack(side="right")
 
 f_pad = ctk.CTkFrame(f_jog_ctrl, fg_color="transparent")
@@ -3675,7 +3793,7 @@ def btn_pad(parent, txt, cmd):
     return ctk.CTkButton(
         parent,
         text=txt,
-        font=(FONT_MAIN, 11, "bold"),
+        font=(FONT_MAIN, 13, "bold"),
         fg_color="#FFFFFF",
         hover_color="#F1F5F9",
         text_color="#1E293B",
@@ -3683,7 +3801,7 @@ def btn_pad(parent, txt, cmd):
         border_color=BORDER_LIGHT,
         corner_radius=6,
         width=52,
-        height=34,
+        height=36,
         command=cmd
     )
 
@@ -3693,7 +3811,7 @@ btn_y_mas.grid(row=0, column=1, pady=2)
 btn_x_menos = btn_pad(f_pad, "◄", lambda: mover_cruzeta('X', -1))
 btn_x_menos.grid(row=1, column=0, padx=2)
 
-ctk.CTkLabel(f_pad, text="○", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).grid(row=1, column=1)
+ctk.CTkLabel(f_pad, text="○", font=(FONT_MAIN, 11), text_color=TEXT_MUTED).grid(row=1, column=1)
 
 btn_x_mas = btn_pad(f_pad, "►", lambda: mover_cruzeta('X', 1))
 btn_x_mas.grid(row=1, column=2, padx=2)
@@ -3709,14 +3827,14 @@ def btn_ref_flat(parent, txt, cmd, colr="#FFFFFF", text_c="#334155"):
     return ctk.CTkButton(
         parent,
         text=txt,
-        font=(FONT_MAIN, 10, "bold"),
+        font=(FONT_MAIN, 11, "bold"),
         fg_color=colr,
         hover_color="#F8FAFC",
         text_color=text_c,
         border_width=1,
         border_color=BORDER_LIGHT,
         corner_radius=6,
-        height=32,
+        height=34,
         command=cmd
     )
 
@@ -3738,13 +3856,13 @@ f_cero_readonly.pack(fill="x", pady=(8, 2))
 
 f_cro_hdr = ctk.CTkFrame(f_cero_readonly, fg_color="transparent")
 f_cro_hdr.pack(fill="x", padx=10, pady=(6, 2))
-ctk.CTkLabel(f_cro_hdr, text="🔒 CERO REGISTRADO (NO EDITABLE):", font=(FONT_MAIN, 9, "bold"), text_color=TEXT_MUTED).pack(side="left")
-ctk.CTkLabel(f_cro_hdr, text="INICIO DE PINTADO", font=(FONT_MAIN, 8, "bold"), text_color=COLOR_OK, fg_color=COLOR_OK_SOFT, corner_radius=4, padx=6).pack(side="right")
+ctk.CTkLabel(f_cro_hdr, text="🔒 CERO REGISTRADO (NO EDITABLE):", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).pack(side="left")
+ctk.CTkLabel(f_cro_hdr, text="INICIO DE PINTADO", font=(FONT_MAIN, 9, "bold"), text_color=COLOR_OK, fg_color=COLOR_OK_SOFT, corner_radius=4, padx=6).pack(side="right")
 
 lbl_cero_jog_val = ctk.CTkLabel(
     f_cero_readonly,
     text=f"X = {cero_guardado_x:.2f} mm   |   Y = {cero_guardado_y:.2f} mm",
-    font=(FONT_MONO, 12, "bold"),
+    font=(FONT_MONO, 13, "bold"),
     text_color=COLOR_KOSTAL_NAVY
 )
 lbl_cero_jog_val.pack(anchor="w", padx=10, pady=(0, 6))
@@ -3765,12 +3883,12 @@ f_ir_row.pack(fill="x", pady=(0, 4))
 btn_inicio = ctk.CTkButton(
     f_ir_row,
     text="▶  INICIO",
-    font=(FONT_MAIN, 13, "bold"),
+    font=(FONT_MAIN, 14, "bold"),
     fg_color=COLOR_OK,
     hover_color=COLOR_OK_HOVER,
     text_color="white",
     corner_radius=8,
-    height=40,
+    height=42,
     command=iniciar_ciclo_general
 )
 btn_inicio.pack(side="left", fill="x", expand=True, padx=(0, 3))
@@ -3778,12 +3896,12 @@ btn_inicio.pack(side="left", fill="x", expand=True, padx=(0, 3))
 btn_reset = ctk.CTkButton(
     f_ir_row,
     text="↻  RESET",
-    font=(FONT_MAIN, 12, "bold"),
+    font=(FONT_MAIN, 13, "bold"),
     fg_color=COLOR_WARN,
     hover_color=COLOR_WARN_HOVER,
     text_color="#1E293B",
     corner_radius=8,
-    height=40,
+    height=42,
     command=ejecutar_reset_general
 )
 btn_reset.pack(side="right", fill="x", expand=True, padx=(3, 0))
@@ -3792,12 +3910,12 @@ btn_reset.pack(side="right", fill="x", expand=True, padx=(3, 0))
 btn_stop = ctk.CTkButton(
     f_mandos_der_b,
     text="🛑  PARO",
-    font=(FONT_MAIN, 14, "bold"),
+    font=(FONT_MAIN, 15, "bold"),
     fg_color=COLOR_NOK,
     hover_color=COLOR_NOK_HOVER,
     text_color="white",
     corner_radius=8,
-    height=44,
+    height=46,
     command=alternar_stop
 )
 btn_stop.pack(fill="x", pady=(2, 0))
@@ -3814,10 +3932,10 @@ hdr_admin.pack(fill="x", side="top")
 f_adm_hdr_left = ctk.CTkFrame(hdr_admin, fg_color="transparent")
 f_adm_hdr_left.pack(side="left", padx=20, fill="y", pady=10)
 
-lbl_adm_title = ctk.CTkLabel(f_adm_hdr_left, text="Programas de producción", font=(FONT_MAIN, 15, "bold"), text_color=COLOR_KOSTAL_DARK)
+lbl_adm_title = ctk.CTkLabel(f_adm_hdr_left, text="Recetario de producción", font=(FONT_MAIN, 17, "bold"), text_color=COLOR_KOSTAL_DARK)
 lbl_adm_title.pack(anchor="w")
 
-lbl_adm_subtitle = ctk.CTkLabel(f_adm_hdr_left, text="Configuración de productos, matrices y coordenadas.", font=(FONT_MAIN, 10), text_color=TEXT_MUTED)
+lbl_adm_subtitle = ctk.CTkLabel(f_adm_hdr_left, text="Configuración de recetas, matrices y coordenadas.", font=(FONT_MAIN, 11), text_color=TEXT_MUTED)
 lbl_adm_subtitle.pack(anchor="w")
 
 f_adm_hdr_right = ctk.CTkFrame(hdr_admin, fg_color="transparent")
@@ -3854,8 +3972,8 @@ admin_nav_btns = {}
 
 MODULOS_INFO = {
     "recetas": {
-        "titulo": "Programas de producción",
-        "sub": "Configuración de productos, matrices y coordenadas."
+        "titulo": "Recetario de producción",
+        "sub": "Configuración de recetas, matrices y coordenadas."
     },
     "excel": {
         "titulo": "Estadísticas de producción",
@@ -3891,7 +4009,7 @@ def crear_btn_nav_admin(nombre, texto_icono):
         f_adm_nav,
         text=texto_icono,
         anchor="w",
-        font=(FONT_MAIN, 11, "bold"),
+        font=(FONT_MAIN, 12, "bold"),
         fg_color="transparent",
         hover_color="#243B66",
         text_color="#CBD5E1",
@@ -3904,7 +4022,7 @@ def crear_btn_nav_admin(nombre, texto_icono):
     return btn
 
 # Botones de navegación con iconos y textos fieles a las imágenes
-crear_btn_nav_admin("recetas", "📋  Programas")
+crear_btn_nav_admin("recetas", "📖  Recetario")
 crear_btn_nav_admin("excel", "📈  Estadísticas")
 crear_btn_nav_admin("usuarios", "👥  Usuarios")
 crear_btn_nav_admin("ajustes", "⚙  Ajustes Globales")
@@ -4389,12 +4507,17 @@ btn_limpiar_rec.pack(side="left")
 frame_tabla_rec = ctk.CTkFrame(view_recetas, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD)
 frame_tabla_rec.pack(fill="both", expand=True, pady=4)
 
-cols_rec = ["NOMBRE", "MODELO", "PROGRAMA", "MATRIZ", "DISTANCIA CENTRO EN X", "DISTANCIA CENTRO EN Y", "ÚLTIMA MODIFICACIÓN", "ESTADO", "ACCIONES"]
-f_rec_tbl_hdr = ctk.CTkFrame(frame_tabla_rec, fg_color="#F8FAFC", height=34, corner_radius=0)
+cols_rec = ["NOMBRE", "MODELO", "CÓDIGO", "MATRIZ", "DIST. CENTRO X", "DIST. CENTRO Y", "ÚLTIMA MODIF.", "ESTADO", "ACCIONES"]
+col_weights_rec = [3, 2, 2, 2, 2, 2, 3, 2, 3]
+
+f_rec_tbl_hdr = ctk.CTkFrame(frame_tabla_rec, fg_color="#F8FAFC", height=38, corner_radius=0)
 f_rec_tbl_hdr.pack(fill="x", padx=1, pady=1)
 
-for c_nom in cols_rec:
-    ctk.CTkLabel(f_rec_tbl_hdr, text=c_nom, font=(FONT_MAIN, 8, "bold"), text_color="#475569").pack(side="left", expand=True)
+for c_i, w in enumerate(col_weights_rec):
+    f_rec_tbl_hdr.columnconfigure(c_i, weight=w, uniform="col_rec")
+
+for c_idx, c_nom in enumerate(cols_rec):
+    ctk.CTkLabel(f_rec_tbl_hdr, text=c_nom, font=(FONT_MAIN, 9, "bold"), text_color="#475569").grid(row=0, column=c_idx, sticky="ew", padx=2, pady=6)
 
 f_rec_items_container = ctk.CTkFrame(frame_tabla_rec, fg_color="transparent")
 f_rec_items_container.pack(fill="both", expand=True, padx=1, pady=1)
@@ -4456,43 +4579,46 @@ def refrescar_lista_recetas_admin():
         es_activa = (nom == receta_activa_actual)
         bg_fila = "#FFFFFF" if idx % 2 == 0 else "#F8FAFC"
         
-        f_row = ctk.CTkFrame(f_rec_items_container, fg_color=bg_fila, height=36, corner_radius=0)
+        f_row = ctk.CTkFrame(f_rec_items_container, fg_color=bg_fila, height=40, corner_radius=0)
         f_row.pack(fill="x", padx=0, pady=1)
         
+        for c_i, w in enumerate(col_weights_rec):
+            f_row.columnconfigure(c_i, weight=w, uniform="col_rec")
+            
         # 1. NOMBRE
-        ctk.CTkLabel(f_row, text=nom, font=(FONT_MAIN, 10, "bold"), text_color=COLOR_KOSTAL_DARK).pack(side="left", expand=True)
+        ctk.CTkLabel(f_row, text=nom, font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_DARK).grid(row=0, column=0, sticky="ew", padx=2, pady=4)
         # 2. MODELO
-        ctk.CTkLabel(f_row, text=r.get("modelo", "KSL-001"), font=(FONT_MONO, 10), text_color=TEXT_PRIMARY).pack(side="left", expand=True)
-        # 3. PROGRAMA (azul como en Imagen 4)
+        ctk.CTkLabel(f_row, text=r.get("modelo", "KSL-001"), font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=1, sticky="ew", padx=2, pady=4)
+        # 3. PROGRAMA
         prog_id = prog_codes[idx % len(prog_codes)]
-        ctk.CTkLabel(f_row, text=prog_id, font=(FONT_MONO, 10, "bold"), text_color="#0284C7").pack(side="left", expand=True)
+        ctk.CTkLabel(f_row, text=prog_id, font=(FONT_MONO, 11, "bold"), text_color="#0284C7").grid(row=0, column=2, sticky="ew", padx=2, pady=4)
         # 4. MATRIZ
         dim_txt = f"{r.get('filas', 3)}×{r.get('cols', 5)}"
-        ctk.CTkLabel(f_row, text=dim_txt, font=(FONT_MONO, 10), text_color=TEXT_PRIMARY).pack(side="left", expand=True)
+        ctk.CTkLabel(f_row, text=dim_txt, font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=3, sticky="ew", padx=2, pady=4)
         # 5. DISTANCIA CENTRO EN X
-        ctk.CTkLabel(f_row, text=f"{float(r.get('delta_x', 25.0)):.2f} mm", font=(FONT_MONO, 10), text_color=TEXT_PRIMARY).pack(side="left", expand=True)
+        ctk.CTkLabel(f_row, text=f"{float(r.get('delta_x', 25.0)):.2f} mm", font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=4, sticky="ew", padx=2, pady=4)
         # 6. DISTANCIA CENTRO EN Y
-        ctk.CTkLabel(f_row, text=f"{float(r.get('delta_y', 30.0)):.2f} mm", font=(FONT_MONO, 10), text_color=TEXT_PRIMARY).pack(side="left", expand=True)
+        ctk.CTkLabel(f_row, text=f"{float(r.get('delta_y', 30.0)):.2f} mm", font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=5, sticky="ew", padx=2, pady=4)
         # 7. ÚLTIMA MODIFICACIÓN
         f_mod = fechas_mod[idx % len(fechas_mod)]
-        ctk.CTkLabel(f_row, text=f_mod, font=(FONT_MONO, 9), text_color=TEXT_MUTED).pack(side="left", expand=True)
-        # 8. ESTADO (Pill Activo / Inactivo Imagen 4)
+        ctk.CTkLabel(f_row, text=f_mod, font=(FONT_MONO, 10), text_color=TEXT_MUTED).grid(row=0, column=6, sticky="ew", padx=2, pady=4)
+        # 8. ESTADO (Pill Activo / Inactivo)
         st_pill_bg = "#DCFCE7" if es_activa or idx < 2 else "#F1F5F9"
         st_pill_fg = "#15803D" if es_activa or idx < 2 else "#64748B"
         st_pill_txt = "● Activo" if es_activa or idx < 2 else "● Inactivo"
         f_st = ctk.CTkFrame(f_row, fg_color="transparent")
-        f_st.pack(side="left", expand=True)
-        ctk.CTkLabel(f_st, text=st_pill_txt, font=(FONT_MAIN, 9, "bold"), fg_color=st_pill_bg, text_color=st_pill_fg, corner_radius=10, padx=8, pady=2).pack()
+        f_st.grid(row=0, column=7, sticky="ew", padx=2, pady=4)
+        ctk.CTkLabel(f_st, text=st_pill_txt, font=(FONT_MAIN, 10, "bold"), fg_color=st_pill_bg, text_color=st_pill_fg, corner_radius=10, padx=8, pady=2).pack()
         # 9. ACCIONES: Configurar y Eliminar
         f_act = ctk.CTkFrame(f_row, fg_color="transparent")
-        f_act.pack(side="left", expand=True)
+        f_act.grid(row=0, column=8, sticky="ew", padx=2, pady=4)
         
         btn_cfg = ctk.CTkButton(
             f_act,
             text="⛭ Configurar",
-            font=(FONT_MAIN, 9, "bold"),
-            width=85,
-            height=26,
+            font=(FONT_MAIN, 10, "bold"),
+            width=88,
+            height=28,
             fg_color="#FFFFFF",
             hover_color=BORDER_LIGHT,
             text_color="#1E3A8A",
@@ -4506,9 +4632,9 @@ def refrescar_lista_recetas_admin():
         btn_del = ctk.CTkButton(
             f_act,
             text="🗑",
-            font=(FONT_MAIN, 10),
+            font=(FONT_MAIN, 11),
             width=28,
-            height=26,
+            height=28,
             fg_color="#FEF2F2",
             hover_color="#FEE2E2",
             text_color="#DC2626",
