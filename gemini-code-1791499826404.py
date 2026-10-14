@@ -572,7 +572,14 @@ def mostrar_alerta_cambio_jig(nombre_receta):
         ).pack(fill="x")
         
         def proceder_cambio_jig():
-            top_jig.destroy()
+            try:
+                top_jig.grab_release()
+            except Exception:
+                pass
+            try:
+                top_jig.destroy()
+            except Exception:
+                pass
             resaltar_temporalmente_set0_y_home(6)
 
         ctk.CTkButton(
@@ -1104,7 +1111,7 @@ def iniciar_tutorial_interactivo(obligatorio=False, usuario_obj=None):
 
 abrir_tutorial_proceso = iniciar_tutorial_interactivo
 
-def cargar_receta_por_nombre(nombre_receta):
+def cargar_receta_por_nombre(nombre_receta, mostrar_modal_aviso=True):
     """
     Carga la receta seleccionada:
     - Actualiza tamaño de matriz (filas, columnas <= 5x5)
@@ -1207,8 +1214,8 @@ def cargar_receta_por_nombre(nombre_receta):
                 text=f"⚠️ Cambio de Jig/Receta: '{nombre_receta}'. Requiere solo setteo del 0 ('Set 0') y regreso a home ('Ir a home').",
                 text_color=COLOR_WARN
             )
-            # Durante el Paso 1 del tutorial guiado, no desplegar modal intrusivo
-            if not ('_tutorial_activo' in globals() and _tutorial_activo and _paso_tutorial_actual == 1):
+            # Durante el Paso 1 del tutorial guiado o si viene de confirmación explícita, no desplegar modal intrusivo
+            if mostrar_modal_aviso and not ('_tutorial_activo' in globals() and _tutorial_activo and _paso_tutorial_actual == 1):
                 ventana.after(300, lambda nr=nombre_receta: mostrar_alerta_cambio_jig(nr))
         else:
             lbl_estado.configure(
@@ -2285,20 +2292,41 @@ def centrar_ventana(win, ancho, alto):
         except Exception:
             pass
 
+_top_dialogo_jig = None
+
 def abrir_dialogo_seleccion_jig():
     """
     Diálogo para seleccionar el Jig/Receta al iniciar sesión.
     No permite pintar hasta que el operador calibre y ajuste el Set 0 en el panel principal.
     """
+    global _top_dialogo_jig
+    if _top_dialogo_jig is not None and _top_dialogo_jig.winfo_exists():
+        try:
+            _top_dialogo_jig.lift()
+            _top_dialogo_jig.focus_force()
+        except Exception:
+            pass
+        return
+
     try:
         top_jig = ctk.CTkToplevel(ventana)
+        _top_dialogo_jig = top_jig
         top_jig.title("Selección de Jig — KOSTAL HMI")
         top_jig.geometry("560x430")
         top_jig.resizable(False, False)
         top_jig.configure(fg_color=BG_MAIN)
         top_jig.transient(ventana)
-        top_jig.grab_set()
+        
         centrar_ventana(top_jig, 560, 430)
+        try:
+            top_jig.lift()
+            top_jig.focus_force()
+        except Exception:
+            pass
+        try:
+            top_jig.grab_set()
+        except Exception:
+            pass
         
         # Encabezado corporativo KOSTAL
         f_top_hdr = ctk.CTkFrame(top_jig, fg_color=COLOR_KOSTAL_NAVY, height=48, corner_radius=0)
@@ -2359,23 +2387,26 @@ def abrir_dialogo_seleccion_jig():
         lbl_img_prev.pack(expand=True, fill="both")
 
         def actualizar_preview_receta(nombre_rec):
-            rec_obj = next((r for r in recetas_disp if r.get("nombre") == nombre_rec), recetas_disp[0] if recetas_disp else {})
-            if rec_obj:
-                lbl_det_nom.configure(text=f"Jig: {rec_obj.get('nombre', '')}")
-                lbl_det_pieza.configure(text=f"Pieza: {rec_obj.get('pieza', '')}")
-                lbl_det_mod.configure(text=f"Modelo: {rec_obj.get('modelo', '')}")
-                fil = rec_obj.get("filas", 1)
-                col = rec_obj.get("cols", 1)
-                tot = rec_obj.get("piezas", fil * col)
-                lbl_det_mat.configure(text=f"Matriz Fixture: {fil} × {col} ({tot} Piezas)")
-                lbl_det_dist.configure(text=f"Dist. C-C: ΔX={rec_obj.get('delta_x', 0):.1f} mm | ΔY={rec_obj.get('delta_y', 0):.1f} mm")
-                
-                img_path = rec_obj.get("imagen", "")
-                ctk_img = cargar_imagen(img_path, 115, 95)
-                if ctk_img:
-                    lbl_img_prev.configure(image=ctk_img, text="")
-                else:
-                    lbl_img_prev.configure(image="", text="[Vista Jig]")
+            try:
+                rec_obj = next((r for r in recetas_disp if r.get("nombre") == nombre_rec), recetas_disp[0] if recetas_disp else {})
+                if rec_obj:
+                    lbl_det_nom.configure(text=f"Jig: {rec_obj.get('nombre', '')}")
+                    lbl_det_pieza.configure(text=f"Pieza: {rec_obj.get('pieza', '')}")
+                    lbl_det_mod.configure(text=f"Modelo: {rec_obj.get('modelo', '')}")
+                    fil = rec_obj.get("filas", 1)
+                    col = rec_obj.get("cols", 1)
+                    tot = rec_obj.get("piezas", fil * col)
+                    lbl_det_mat.configure(text=f"Matriz Fixture: {fil} × {col} ({tot} Piezas)")
+                    lbl_det_dist.configure(text=f"Dist. C-C: ΔX={rec_obj.get('delta_x', 0):.1f} mm | ΔY={rec_obj.get('delta_y', 0):.1f} mm")
+                    
+                    img_path = rec_obj.get("imagen", "")
+                    ctk_img = cargar_imagen(img_path, 115, 95)
+                    if ctk_img:
+                        lbl_img_prev.configure(image=ctk_img, text="")
+                    else:
+                        lbl_img_prev.configure(image=None, text="[Vista Jig]")
+            except Exception as ep:
+                print(f"Error actualizando preview de receta: {ep}")
 
         opt_rec = ctk.CTkOptionMenu(
             f_sel_row,
@@ -2397,27 +2428,52 @@ def abrir_dialogo_seleccion_jig():
         actualizar_preview_receta(var_sel_rec.get())
 
         def confirmar_jig():
-            global cero_ha_sido_seteado
-            rec_elegida = var_sel_rec.get()
-            cargar_receta_por_nombre(rec_elegida)
-            if 'option_receta' in globals() and option_receta:
-                option_receta.set(rec_elegida)
-                
-            # Establecer Set 0 pendiente para la primera corrida de este Jig
-            cero_ha_sido_seteado = False
-            if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
-                lbl_indicador_set0.configure(
-                    text=f"⚠️ SET 0 PENDIENTE: Calibre origen para '{rec_elegida}' con JOG y presione '↩ Set 0'",
-                    text_color="#B45309"
-                )
-            if 'f_cero_ind' in globals() and f_cero_ind:
-                f_cero_ind.configure(fg_color="#FEF3C7", border_color="#FDE68A")
-                
-            lbl_estado.configure(
-                text=f"✓ Jig '{rec_elegida}' confirmado. Calibre Set 0 con la Cruceta JOG antes de iniciar el pintado.",
-                text_color=COLOR_WARN
-            )
-            top_jig.destroy()
+            global cero_ha_sido_seteado, _top_dialogo_jig
+            try:
+                rec_elegida = var_sel_rec.get()
+                cargar_receta_por_nombre(rec_elegida, mostrar_modal_aviso=False)
+                if 'option_receta' in globals() and option_receta:
+                    try:
+                        option_receta.set(rec_elegida)
+                    except Exception:
+                        pass
+                    
+                # Establecer Set 0 pendiente para la primera corrida de este Jig
+                cero_ha_sido_seteado = False
+                if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
+                    try:
+                        lbl_indicador_set0.configure(
+                            text=f"⚠️ SET 0 PENDIENTE: Calibre origen para '{rec_elegida}' con JOG y presione '↩ Set 0'",
+                            text_color="#B45309"
+                        )
+                    except Exception:
+                        pass
+                if 'f_cero_ind' in globals() and f_cero_ind:
+                    try:
+                        f_cero_ind.configure(fg_color="#FEF3C7", border_color="#FDE68A")
+                    except Exception:
+                        pass
+                    
+                if 'lbl_estado' in globals() and lbl_estado:
+                    try:
+                        lbl_estado.configure(
+                            text=f"✓ Jig '{rec_elegida}' confirmado. Calibre Set 0 con la Cruceta JOG antes de iniciar el pintado.",
+                            text_color=COLOR_WARN
+                        )
+                    except Exception:
+                        pass
+            except Exception as err:
+                print(f"Error procesando confirmación de Jig: {err}")
+            finally:
+                try:
+                    top_jig.grab_release()
+                except Exception:
+                    pass
+                try:
+                    top_jig.destroy()
+                except Exception:
+                    pass
+                _top_dialogo_jig = None
 
         top_jig.protocol("WM_DELETE_WINDOW", confirmar_jig)
 
@@ -2510,11 +2566,22 @@ def procesar_login_formulario():
     iniciar_sesion(match['nombre'], match['rol'])
 
 def cerrar_sesion():
-    global temporizador_sesion_id
+    global temporizador_sesion_id, _top_dialogo_jig
     if temporizador_sesion_id:
         ventana.after_cancel(temporizador_sesion_id)
         temporizador_sesion_id = None
         
+    if _top_dialogo_jig is not None and _top_dialogo_jig.winfo_exists():
+        try:
+            _top_dialogo_jig.grab_release()
+        except Exception:
+            pass
+        try:
+            _top_dialogo_jig.destroy()
+        except Exception:
+            pass
+        _top_dialogo_jig = None
+
     frame_operador.pack_forget()
     frame_admin.pack_forget()
     frame_login.pack(fill="both", expand=True)
