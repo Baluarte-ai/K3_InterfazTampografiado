@@ -3163,9 +3163,12 @@ def crear_card_moderna(parent, titulo=None, btn_widget=None):
             text_color="#1E3A8A"
         )
         lbl_t.pack(side="left", padx=14, pady=6)
+        c._header_frame = hdr
         c._header_title = lbl_t
         if btn_widget:
-            btn_widget(hdr).pack(side="right", padx=8, pady=4)
+            btn_w = btn_widget(hdr)
+            btn_w.pack(side="right", padx=8, pady=4)
+            c._header_btn = btn_w
     return c
 
 # ==============================================================================
@@ -3781,9 +3784,72 @@ lbl_no_listo= crear_pill_ctk(f_diag_b, 4, 0, "ESTADO: NO LISTO", cspan=3)
 col_3 = ctk.CTkFrame(body_grid, fg_color="transparent")
 col_3.grid(row=0, column=2, sticky="nsew", padx=6)
 
-# Tarjeta Única: Operación y Avance + Movimiento Manual JOG
-card_jog = crear_card_moderna(col_3, "Operación & Movimiento JOG")
+# Estado y control de pestaña retráctil para Operación & JOG
+jog_pestana_retraida = False
+btn_toggle_jog = None
+
+def alternar_pestana_jog(event=None):
+    global jog_pestana_retraida, btn_toggle_jog
+    jog_pestana_retraida = not jog_pestana_retraida
+    if jog_pestana_retraida:
+        # Retraer toda la sección JOG en la pestaña superior
+        f_jog_b.pack_forget()
+        if btn_toggle_jog:
+            btn_toggle_jog.configure(
+                text="▼ Desplegar Pestaña",
+                fg_color=COLOR_KOSTAL_NAVY,
+                hover_color=COLOR_KOSTAL_ACCENT,
+                text_color="white"
+            )
+        if hasattr(card_jog, '_header_title'):
+            card_jog._header_title.configure(text="🕹️ OPERACIÓN & JOG")
+        if hasattr(card_jog, '_header_frame'):
+            card_jog._header_frame.configure(fg_color="#E2E8F0")
+    else:
+        # Desplegar toda la sección JOG
+        f_jog_b.pack(fill="x", padx=12, pady=8)
+        if btn_toggle_jog:
+            btn_toggle_jog.configure(
+                text="▲ Retraer en Pestaña",
+                fg_color="#E2E8F0",
+                hover_color=BORDER_CARD,
+                text_color=COLOR_KOSTAL_NAVY
+            )
+        if hasattr(card_jog, '_header_title'):
+            card_jog._header_title.configure(text="OPERACIÓN & MOVIMIENTO JOG")
+        if hasattr(card_jog, '_header_frame'):
+            card_jog._header_frame.configure(fg_color="#F1F5F9")
+
+def _widget_btn_toggle_jog(parent_hdr):
+    global btn_toggle_jog
+    btn_toggle_jog = ctk.CTkButton(
+        parent_hdr,
+        text="▲ Retraer en Pestaña",
+        width=135,
+        height=24,
+        font=(FONT_MAIN, 10, "bold"),
+        fg_color="#E2E8F0",
+        hover_color=BORDER_CARD,
+        text_color=COLOR_KOSTAL_NAVY,
+        corner_radius=5,
+        command=alternar_pestana_jog
+    )
+    return btn_toggle_jog
+
+# Tarjeta Única: Operación y Avance + Movimiento Manual JOG con botón de pestaña retráctil
+card_jog = crear_card_moderna(
+    col_3, 
+    "Operación & Movimiento JOG",
+    btn_widget=_widget_btn_toggle_jog
+)
 card_jog.pack(fill="x", pady=(0, 6))
+
+if hasattr(card_jog, '_header_frame'):
+    card_jog._header_frame.bind("<Button-1>", alternar_pestana_jog)
+    card_jog._header_frame.configure(cursor="hand2")
+if hasattr(card_jog, '_header_title'):
+    card_jog._header_title.bind("<Button-1>", alternar_pestana_jog)
+    card_jog._header_title.configure(cursor="hand2")
 
 f_jog_b = ctk.CTkFrame(card_jog, fg_color="transparent")
 f_jog_b.pack(fill="x", padx=12, pady=8)
