@@ -3,7 +3,6 @@ import sys
 import time
 import json
 import datetime
-from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk, ImageDraw, ImageOps, ImageEnhance
@@ -3002,8 +3001,8 @@ def abrir_dialogo_fin_de_hora():
                     lbl_kpi_calidad.configure(text=f"{cal:.1f}%")
                 
                 # Registrar en historial de producción
-                hora_actual_str = datetime.now().strftime("%H:%M:%S")
-                fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
+                hora_actual_str = datetime.datetime.now().strftime("%H:%M:%S")
+                fecha_actual_str = datetime.datetime.now().strftime("%d/%m/%Y")
                 dur_str = lbl_op_session_timer.cget("text") if 'lbl_op_session_timer' in globals() and lbl_op_session_timer else "00:00:00"
                 usr_str = usuario_actual.get("nombre", "Operador") if 'usuario_actual' in globals() and usuario_actual else "Operador"
                 rec_str = config_actual.get("receta_activa", "Receta") if 'config_actual' in globals() and config_actual else "Receta"
