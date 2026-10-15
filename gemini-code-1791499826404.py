@@ -3,6 +3,7 @@ import sys
 import time
 import json
 import datetime
+from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk, ImageDraw, ImageOps, ImageEnhance
@@ -1293,13 +1294,13 @@ def resetear_variables_inicio(forzar_reseteo_referencias=False):
     fixture_piezas_estado = ["pendiente"] * matriz_total
     
     # 5. Reseteo de KPIs visuales en 0
-    if 'lbl_kpi_total' in globals():
+    if 'lbl_kpi_total' in globals() and lbl_kpi_total:
         lbl_kpi_total.configure(text="0")
-    if 'lbl_kpi_ok' in globals():
+    if 'lbl_kpi_ok' in globals() and lbl_kpi_ok:
         lbl_kpi_ok.configure(text="0")
-    if 'lbl_kpi_nok' in globals():
+    if 'lbl_kpi_nok' in globals() and lbl_kpi_nok:
         lbl_kpi_nok.configure(text="0")
-    if 'lbl_kpi_calidad' in globals():
+    if 'lbl_kpi_calidad' in globals() and lbl_kpi_calidad:
         lbl_kpi_calidad.configure(text="100.0%")
     if 'lbl_piezas_realizadas' in globals():
         lbl_piezas_realizadas.configure(text=f"00 / {matriz_total:02d}")
@@ -1667,14 +1668,6 @@ def avanzar_siguiente_pieza_matriz():
             # REQUERIMIENTO: Activar de forma garantizada NUEVA_POS / NUEVA_POSICION en el PLC
             activar_nueva_posicion(duracion_ms=500)
             
-            # En CODESYS, la cruzeta suele estar interbloqueada si MANUAL es False.
-            # Aseguramos que el PLC acepte el movimiento:
-            if plc_conectado and not estado_manual:
-                try:
-                    nodos["MANUAL"].set_value(ua.Variant(True, ua.VariantType.Boolean))
-                except Exception:
-                    pass
-                    
             enviar_pulso("CRUZETA", duracion_ms=350)
             
             dibujar_fixture_moderno()
@@ -1777,6 +1770,19 @@ def alternar_pintar():
             maquina_en_home = False
             btn_pintar.configure(text="🎨\nPINTANDO\nACTIVO\n[ON]", fg_color=COLOR_WARN, text_color="#1E293B", border_color="#B45309")
             
+            # Requisito: Cerrar automáticamente el modo manual al activar pintar
+            global estado_manual
+            if estado_manual:
+                estado_manual = False
+                if plc_conectado:
+                    try:
+                        nodos["MANUAL"].set_value(ua.Variant(False, ua.VariantType.Boolean))
+                    except Exception:
+                        pass
+                if 'btn_manual' in globals():
+                    btn_manual.configure(text="⚙ MODO: AUTO", fg_color=COLOR_KOSTAL_NAVY, text_color="white")
+                lbl_estado.configure(text="ℹ MODO MANUAL cerrado automáticamente para producción.", text_color=COLOR_KOSTAL_ACCENT)
+            
             # Asegurar coordenadas generadas
             actualizar_coordenadas_matriz()
             indice_matriz_actual = 0
@@ -1794,12 +1800,6 @@ def alternar_pintar():
             enviar_datos()
             activar_nueva_posicion(duracion_ms=500)
             
-            if plc_conectado and not estado_manual:
-                try:
-                    nodos["MANUAL"].set_value(ua.Variant(True, ua.VariantType.Boolean))
-                except Exception:
-                    pass
-                    
             enviar_pulso("CRUZETA", duracion_ms=350)
             
             # Activar variable PINTAR en el PLC
@@ -2098,9 +2098,15 @@ def actualizar_telemetria_plc(dest_x=None, dest_y=None):
             )
 
 def probar_enviar_pieza_especifica(idx):
-    """Permite probar y enviar individualmente cualquier pieza de la matriz directamente al PLC"""
+    """Permite probar y enviar individualmente cualquier pieza de la matriz directamente al PLC (solo en modo manual)"""
     global indice_matriz_actual
     if idx < 0 or idx >= len(matriz_coordenadas):
+        return
+    if not estado_manual:
+        lbl_estado.configure(
+            text="⚠️ MODO MANUAL REQUERIDO: Active el 'MODO MANUAL' para enviar piezas al PLC.",
+            text_color=COLOR_WARN
+        )
         return
     indice_matriz_actual = idx
     for k in range(len(fixture_piezas_estado)):
@@ -2117,12 +2123,6 @@ def probar_enviar_pieza_especifica(idx):
     enviar_datos()
     activar_nueva_posicion(duracion_ms=500)
     
-    if plc_conectado and not estado_manual:
-        try:
-            nodos["MANUAL"].set_value(ua.Variant(True, ua.VariantType.Boolean))
-        except Exception:
-            pass
-            
     enviar_pulso("CRUZETA", duracion_ms=350)
     
     dibujar_fixture_moderno()
@@ -2262,20 +2262,7 @@ def alternar_ver_contrasena():
         btn_ver_pass.configure(text="👁")
 
 def alternar_columna_derecha():
-    global col_der_visible
-    col_der_visible = not col_der_visible
-    if col_der_visible:
-        if 'dock_tab_lateral' in globals():
-            dock_tab_lateral.grid_remove()
-        col_3.grid(row=0, column=2, sticky="nsew", padx=6)
-        body_grid.columnconfigure(1, weight=46)
-        body_grid.columnconfigure(2, weight=26)
-    else:
-        col_3.grid_remove()
-        if 'dock_tab_lateral' in globals():
-            dock_tab_lateral.grid(row=0, column=2, sticky="ns", padx=(2, 0))
-        body_grid.columnconfigure(1, weight=72)
-        body_grid.columnconfigure(2, weight=0)
+    pass
 
 def centrar_ventana(win, ancho, alto):
     """Centra una ventana CTkToplevel en la pantalla de forma segura"""
@@ -2633,6 +2620,7 @@ ventana.protocol("WM_DELETE_WINDOW", cerrar_aplicacion)
 img_logo_kostal_login = cargar_imagen("LogoKostal.webp", 290, 60)
 img_logo_baluarte_login = cargar_imagen("LOGO_BALUARTE.png", 220, 52)
 img_logo_kostal_hdr = cargar_imagen("LogoKostal.webp", 150, 30)
+img_logo_baluarte_hdr = cargar_imagen("LOGO_BALUARTE.png", 145, 36)
 img_logo_baluarte_panel = cargar_imagen("LOGO_BALUARTE.png", 270, 68)
 
 # ------------------------------------------------------------------------------
@@ -2771,6 +2759,14 @@ ctk.CTkLabel(
     padx=8, 
     pady=2
 ).pack(side="left", padx=(0, 12), pady=6)
+
+# Logo Baluarte Integrador en Header Superior (al lado de KOSTAL)
+hdr_baluarte = ctk.CTkFrame(header_hmi, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD, height=44)
+hdr_baluarte.pack(side="left", fill="y", padx=(0, 6))
+if img_logo_baluarte_hdr:
+    ctk.CTkLabel(hdr_baluarte, image=img_logo_baluarte_hdr, text="").pack(side="left", padx=10, pady=3)
+else:
+    ctk.CTkLabel(hdr_baluarte, text="BALUARTE", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left", padx=10, pady=6)
 
 # Bloque Central: Floating White Card (Hora, Fecha, Ajustes HMI, Fin Hora)
 hdr_mid = ctk.CTkFrame(header_hmi, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD, height=44)
@@ -2977,57 +2973,70 @@ def abrir_dialogo_fin_de_hora():
         def guardar_fin_hora():
             global kpis_fin_hora_registrados, piezas_ok_registradas, piezas_nok_registradas, calidad_registrada
             try:
-                v_ok = int(entry_ok.get().strip())
-                v_nok = int(entry_nok.get().strip())
-                if v_ok < 0 or v_nok < 0:
-                    messagebox.showerror("Error", "Los valores no pueden ser negativos.")
+                try:
+                    v_ok = int(entry_ok.get().strip())
+                    v_nok = int(entry_nok.get().strip())
+                    if v_ok < 0 or v_nok < 0:
+                        messagebox.showerror("Error", "Los valores no pueden ser negativos.")
+                        return
+                except ValueError:
+                    messagebox.showerror("Error", "Por favor ingrese números enteros válidos para OK y NO OK.")
                     return
-            except ValueError:
-                messagebox.showerror("Error", "Por favor ingrese números enteros válidos para OK y NO OK.")
-                return
+                    
+                tot = v_ok + v_nok
+                cal = (v_ok / tot * 100.0) if tot > 0 else 100.0
                 
-            tot = v_ok + v_nok
-            cal = (v_ok / tot * 100.0) if tot > 0 else 100.0
-            
-            kpis_fin_hora_registrados = True
-            piezas_ok_registradas = v_ok
-            piezas_nok_registradas = v_nok
-            calidad_registrada = cal
-            
-            # Actualizar visualmente la tarjeta de KPIs en la pantalla del operador
-            if 'lbl_kpi_total' in globals():
-                lbl_kpi_total.configure(text=str(tot))
-            if 'lbl_kpi_ok' in globals():
-                lbl_kpi_ok.configure(text=str(v_ok))
-            if 'lbl_kpi_nok' in globals():
-                lbl_kpi_nok.configure(text=str(v_nok))
-            if 'lbl_kpi_calidad' in globals():
-                lbl_kpi_calidad.configure(text=f"{cal:.1f}%")
-            
-            # Registrar en historial de producción
-            nuevo_registro = {
-                "hora": datetime.now().strftime("%H:%M:%S"),
-                "fecha": datetime.now().strftime("%d/%m/%Y"),
-                "usuario": usuario_actual.get("nombre", "Operador") if 'usuario_actual' in globals() else "Operador",
-                "receta": config_actual.get("receta_activa", "Receta"),
-                "total": tot,
-                "ok": v_ok,
-                "nok": v_nok,
-                "calidad": f"{cal:.1f}%",
-                "duracion": lbl_op_session_timer.cget("text") if 'lbl_op_session_timer' in globals() else "00:00:00"
-            }
-            if 'REGISTROS_PRODUCCION' in globals():
-                REGISTROS_PRODUCCION.insert(0, nuevo_registro)
+                kpis_fin_hora_registrados = True
+                piezas_ok_registradas = v_ok
+                piezas_nok_registradas = v_nok
+                calidad_registrada = cal
                 
-            lbl_estado.configure(
-                text=f"✓ Fin de hora registrado: Total={tot} | OK={v_ok} | NOK={v_nok} | Calidad={cal:.1f}%",
-                text_color=COLOR_OK
-            )
-            dialogo.destroy()
-            messagebox.showinfo(
-                "Fin de Hora Registrado", 
-                f"Registro guardado con éxito:\n\n• Piezas OK: {v_ok}\n• Piezas NOK: {v_nok}\n• Total: {tot}\n• Calidad: {cal:.1f}%"
-            )
+                # Actualizar visualmente la tarjeta de KPIs en la pantalla del operador
+                if 'lbl_kpi_total' in globals() and lbl_kpi_total:
+                    lbl_kpi_total.configure(text=str(tot))
+                if 'lbl_kpi_ok' in globals() and lbl_kpi_ok:
+                    lbl_kpi_ok.configure(text=str(v_ok))
+                if 'lbl_kpi_nok' in globals() and lbl_kpi_nok:
+                    lbl_kpi_nok.configure(text=str(v_nok))
+                if 'lbl_kpi_calidad' in globals() and lbl_kpi_calidad:
+                    lbl_kpi_calidad.configure(text=f"{cal:.1f}%")
+                
+                # Registrar en historial de producción
+                hora_actual_str = datetime.now().strftime("%H:%M:%S")
+                fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
+                dur_str = lbl_op_session_timer.cget("text") if 'lbl_op_session_timer' in globals() and lbl_op_session_timer else "00:00:00"
+                usr_str = usuario_actual.get("nombre", "Operador") if 'usuario_actual' in globals() and usuario_actual else "Operador"
+                rec_str = config_actual.get("receta_activa", "Receta") if 'config_actual' in globals() and config_actual else "Receta"
+                
+                nuevo_registro = {
+                    "hora": hora_actual_str,
+                    "fecha": fecha_actual_str,
+                    "usuario": usr_str,
+                    "receta": rec_str,
+                    "total": tot,
+                    "ok": v_ok,
+                    "nok": v_nok,
+                    "calidad": f"{cal:.1f}%",
+                    "duracion": dur_str
+                }
+                if 'REGISTROS_PRODUCCION' in globals() and isinstance(REGISTROS_PRODUCCION, list):
+                    REGISTROS_PRODUCCION.insert(0, nuevo_registro)
+                    
+                lbl_estado.configure(
+                    text=f"✓ Fin de hora registrado: Total={tot} | OK={v_ok} | NOK={v_nok} | Calidad={cal:.1f}%",
+                    text_color=COLOR_OK
+                )
+                try:
+                    dialogo.destroy()
+                except Exception:
+                    pass
+                messagebox.showinfo(
+                    "Fin de Hora Registrado", 
+                    f"Registro guardado con éxito:\n\n• Piezas OK: {v_ok}\n• Piezas NOK: {v_nok}\n• Total: {tot}\n• Calidad: {cal:.1f}%"
+                )
+            except Exception as e_guardar:
+                print(f"Error al guardar fin de hora: {e_guardar}")
+                messagebox.showerror("Error al Guardar", f"Ocurrió un error al guardar el registro:\n{e_guardar}")
             
         btn_guardar = ctk.CTkButton(
             f_d_inner,
@@ -3142,21 +3151,6 @@ body_grid.columnconfigure(0, weight=28)
 body_grid.columnconfigure(1, weight=46)
 body_grid.columnconfigure(2, weight=26)
 body_grid.rowconfigure(0, weight=1)
-
-# Pestaña docked en el borde derecho cuando el lateral está oculto
-dock_tab_lateral = ctk.CTkFrame(body_grid, fg_color="transparent", width=34)
-btn_dock_open = ctk.CTkButton(
-    dock_tab_lateral,
-    text="◀\n\nL\nA\nT\nE\nR\nA\nL\n\nJ\nO\nG",
-    width=30,
-    font=(FONT_MAIN, 8, "bold"),
-    fg_color=COLOR_KOSTAL_NAVY,
-    hover_color=COLOR_KOSTAL_ACCENT,
-    text_color="white",
-    corner_radius=6,
-    command=alternar_columna_derecha
-)
-btn_dock_open.pack(fill="y", expand=True, pady=12)
 
 def crear_card_moderna(parent, titulo=None, btn_widget=None):
     c = ctk.CTkFrame(parent, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color="#CBD5E1")
@@ -3281,9 +3275,9 @@ def crear_kpi_item(parent, lbl_txt, val_init, c_txt):
     return lbl_v
 
 lbl_kpi_total   = crear_kpi_item(f_kpis_box, "TOTAL", "0", TEXT_PRIMARY)
-lbl_kpi_ok      = crear_kpi_item(f_kpis_box, "OK", "-", COLOR_OK)
-lbl_kpi_nok     = crear_kpi_item(f_kpis_box, "NOK", "-", COLOR_NOK)
-lbl_kpi_calidad = crear_kpi_item(f_kpis_box, "% CALIDAD", "-", COLOR_OK)
+lbl_kpi_ok      = crear_kpi_item(f_kpis_box, "OK", "0", COLOR_OK)
+lbl_kpi_nok     = None
+lbl_kpi_calidad = None
 
 btn_fin_de_hora = ctk.CTkButton(
     f_proc_b,
@@ -3300,10 +3294,10 @@ btn_fin_de_hora.pack(fill="x", pady=(3, 6))
 
 # 2. Control Principal: Botón Maestro de Pintado (Grande y Circular)
 card_marcha = crear_card_moderna(col_1, "Control Principal de Pintado")
-card_marcha.pack(fill="x", pady=6)
+card_marcha.pack(fill="both", expand=True, pady=(6, 0))
 
 f_marcha_b = ctk.CTkFrame(card_marcha, fg_color="transparent")
-f_marcha_b.pack(fill="x", padx=14, pady=12)
+f_marcha_b.pack(fill="both", expand=True, padx=14, pady=12)
 
 f_pintar_center = ctk.CTkFrame(f_marcha_b, fg_color="transparent")
 f_pintar_center.pack(expand=True, fill="both")
@@ -3311,26 +3305,18 @@ f_pintar_center.pack(expand=True, fill="both")
 btn_pintar = ctk.CTkButton(
     f_pintar_center,
     text="🎨\nINICIO DE\nPINTADO\n[OFF]",
-    font=(FONT_MAIN, 13, "bold"),
+    font=(FONT_MAIN, 16, "bold"),
     fg_color=COLOR_KOSTAL_NAVY,
     hover_color=COLOR_KOSTAL_ACCENT,
     text_color="white",
-    corner_radius=62,
-    width=124,
-    height=124,
-    border_width=3,
+    corner_radius=80,
+    width=160,
+    height=160,
+    border_width=4,
     border_color="#CBD5E1",
     command=alternar_pintar
 )
-btn_pintar.pack(pady=10)
-
-# Baluarte Card
-card_bal_izq = ctk.CTkFrame(col_1, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_CARD)
-card_bal_izq.pack(fill="x", pady=(6, 0))
-f_bal_in = ctk.CTkFrame(card_bal_izq, fg_color="transparent")
-f_bal_in.pack(padx=12, pady=10, fill="x")
-if img_logo_baluarte_panel:
-    ctk.CTkLabel(f_bal_in, image=img_logo_baluarte_panel, text="").pack(expand=True)
+btn_pintar.pack(expand=True, pady=14)
 
 # ==============================================================================
 # COLUMNA 2 (CENTRAL): ESTADO DEL FIXTURE (3x5) + DIAGNÓSTICO
@@ -3392,21 +3378,27 @@ lbl_matriz_dist_badge = ctk.CTkLabel(
 )
 lbl_matriz_dist_badge.pack(side="left", padx=8, pady=3)
 
+coordenadas_visibles_map = {i: True for i in range(100)}
 coords_visibles_todas = True
+
 def alternar_todas_coordenadas():
     global coords_visibles_todas
     coords_visibles_todas = not coords_visibles_todas
     for i in range(matriz_total):
         coordenadas_visibles_map[i] = coords_visibles_todas
+    if coords_visibles_todas:
+        btn_toggle_coords.configure(fg_color=COLOR_KOSTAL_NAVY)
+    else:
+        btn_toggle_coords.configure(fg_color="#64748B")
     dibujar_fixture_moderno()
     estado_str = "visibles" if coords_visibles_todas else "ocultas"
-    lbl_estado.configure(text=f"🔍 Coordenadas de la matriz: {estado_str}", text_color=COLOR_KOSTAL_ACCENT)
+    lbl_estado.configure(text=f"Coordenadas de la matriz: {estado_str}", text_color=COLOR_KOSTAL_ACCENT)
 
 btn_toggle_coords = ctk.CTkButton(
     f_matriz_info_bar,
-    text="🔍 Coords",
+    text="Coords",
     font=(FONT_MAIN, 9, "bold"),
-    width=85,
+    width=75,
     height=24,
     fg_color=COLOR_KOSTAL_NAVY,
     hover_color=COLOR_KOSTAL_ACCENT,
@@ -3468,6 +3460,12 @@ lbl_tel_interlock = ctk.CTkLabel(
 lbl_tel_interlock.pack(pady=(1, 0))
 
 def forzar_prueba_movimiento_actual():
+    if not estado_manual:
+        lbl_estado.configure(
+            text="⚠️ MODO MANUAL REQUERIDO: Active el 'MODO MANUAL' para mover piezas.",
+            text_color=COLOR_WARN
+        )
+        return
     idx = indice_matriz_actual if 0 <= indice_matriz_actual < len(matriz_coordenadas) else 0
     probar_enviar_pieza_especifica(idx)
 
@@ -3485,14 +3483,13 @@ btn_probar_mov = ctk.CTkButton(
 )
 btn_probar_mov.pack(side="right", padx=6, pady=3)
 
-canvas_fixture = tk.Canvas(card_fixture, bg="#FFFFFF", highlightthickness=0, height=225)
+canvas_fixture = tk.Canvas(card_fixture, bg="#FFFFFF", highlightthickness=0, height=235)
 canvas_fixture.pack(fill="both", expand=True, padx=8, pady=4)
 
-coordenadas_visibles_map = {i: True for i in range(100)}
 coordenadas_pill_bboxes = {}
 
 def al_click_en_pieza_fixture(event):
-    """Permite hacer clic sobre la lupa para ocultar/ver coordenadas o sobre la tarjeta para probar su envío directo"""
+    """Permite hacer clic sobre una tarjeta para enviar su coordenada al PLC únicamente en MODO MANUAL"""
     try:
         filas = max(1, matriz_filas)
         cols = max(1, matriz_cols)
@@ -3516,14 +3513,12 @@ def al_click_en_pieza_fixture(event):
             x2 = x1 + card_w
             y2 = y1 + card_h
             if x1 <= event.x <= x2 and y1 <= event.y <= y2:
-                # Comprobar si hizo clic en el área de la pastilla / lupa de la coordenada
-                if i in coordenadas_pill_bboxes:
-                    px1, py1, px2, py2 = coordenadas_pill_bboxes[i]
-                    if px1 <= event.x <= px2 and py1 <= event.y <= py2:
-                        coordenadas_visibles_map[i] = not coordenadas_visibles_map.get(i, True)
-                        dibujar_fixture_moderno()
-                        return
-                # De lo contrario, enviar la coordenada al PLC
+                if not estado_manual:
+                    lbl_estado.configure(
+                        text="⚠️ MODO MANUAL REQUERIDO: Active el 'MODO MANUAL' para enviar piezas al PLC.",
+                        text_color=COLOR_WARN
+                    )
+                    return
                 probar_enviar_pieza_especifica(i)
                 break
     except Exception:
@@ -3538,29 +3533,18 @@ def actualizar_kpis_fixture():
     global total_piezas_sesion_acum
     ok_cnt = sum(1 for s in fixture_piezas_estado if s == "ok")
     
-    total_piezas_sesion_acum = (contador_ciclos_completados * matriz_total) + ok_cnt
+    # Requisito: Las piezas se contabilizan POR JIG COMPLETO (cada ciclo de jig terminado = 1 pieza)
+    total_piezas_sesion_acum = contador_ciclos_completados
     
-    if 'lbl_kpi_total' in globals():
+    if 'lbl_kpi_total' in globals() and lbl_kpi_total:
         lbl_kpi_total.configure(text=str(total_piezas_sesion_acum))
         
-    if 'lbl_piezas_realizadas' in globals():
+    if 'lbl_piezas_realizadas' in globals() and lbl_piezas_realizadas:
         lbl_piezas_realizadas.configure(text=f"{ok_cnt:02d} / {matriz_total:02d}")
         
-    # Solo mostrar OK, NOK y % CALIDAD si ya se registraron en Fin de Hora
-    if kpis_fin_hora_registrados:
-        if 'lbl_kpi_ok' in globals():
-            lbl_kpi_ok.configure(text=str(piezas_ok_registradas))
-        if 'lbl_kpi_nok' in globals():
-            lbl_kpi_nok.configure(text=str(piezas_nok_registradas))
-        if 'lbl_kpi_calidad' in globals():
-            lbl_kpi_calidad.configure(text=f"{calidad_registrada:.1f}%")
-    else:
-        if 'lbl_kpi_ok' in globals():
-            lbl_kpi_ok.configure(text="-")
-        if 'lbl_kpi_nok' in globals():
-            lbl_kpi_nok.configure(text="-")
-        if 'lbl_kpi_calidad' in globals():
-            lbl_kpi_calidad.configure(text="-")
+    if 'lbl_kpi_ok' in globals() and lbl_kpi_ok:
+        val_ok = piezas_ok_registradas if kpis_fin_hora_registrados else total_piezas_sesion_acum
+        lbl_kpi_ok.configure(text=str(val_ok))
 
 f_leg = ctk.CTkFrame(card_fixture, fg_color="transparent")
 f_leg.pack(fill="x", padx=10, pady=(2, 6))
@@ -3576,7 +3560,7 @@ for colr, txt in [
 
 ctk.CTkLabel(
     f_leg,
-    text="💡 Clic en 🔍 para ocultar/ver coordenada  |  Clic en tarjeta para enviar a PLC",
+    text="Clic en tarjeta para enviar a PLC (Solo en Modo Manual)",
     font=(FONT_MAIN, 10, "bold"),
     text_color=COLOR_KOSTAL_ACCENT
 ).pack(side="right", padx=6)
@@ -3605,7 +3589,6 @@ def dibujar_fixture_moderno():
     ruta_img = receta_activa.get("imagen", "") if receta_activa else ""
     
     rad = max(2, min(10, int(card_h * 0.18)))
-    coordenadas_pill_bboxes.clear()
     
     for i in range(total_piezas):
         r = i // cols
@@ -3652,58 +3635,56 @@ def dibujar_fixture_moderno():
         ]
         canvas_fixture.create_polygon(pts, smooth=True, fill=c_bg, outline=c_border, width=bw)
         
-        # 1. Número secuencial a la izquierda (01, 02, 03...)
-        num_x = x1 + card_w * 0.25
-        num_y = y1 + card_h * 0.28
-        font_sz = max(9, min(14, int(card_h * 0.26)))
-        canvas_fixture.create_text(
-            num_x, num_y,
-            text=f"{i+1:02d}",
-            font=(FONT_MAIN, font_sz, "bold"),
-            fill=c_txt
-        )
+        # 1. Número secuencial y coordenadas a la izquierda
+        es_visible_coord = coordenadas_visibles_map.get(i, coords_visibles_todas)
+        num_x = x1 + card_w * 0.26
         
-        # 2. Coordenadas a las que se envía este punto (X e Y) debajo del número con LUPA 🔍
-        coord_x = x1 + card_w * 0.25
-        coord_y = y1 + card_h * 0.68
-        
-        pill_w = card_w * 0.44
-        pill_h = card_h * 0.38
-        px1 = coord_x - pill_w / 2
-        py1 = coord_y - pill_h / 2
-        px2 = coord_x + pill_w / 2
-        py2 = coord_y + pill_h / 2
-        
-        # Guardar coordenadas de la pastilla para alternar con clic
-        coordenadas_pill_bboxes[i] = (px1, py1, px2, py2)
-        
-        if st == "activa":
-            c_pbg, c_pbd, c_ptxt = "#DBEAFE", "#93C5FD", "#1E40AF"
-        elif st in ("ok", "nok"):
-            c_pbg, c_pbd, c_ptxt = "#DCFCE7", "#86EFAC", "#065F46"
-        else:
-            c_pbg, c_pbd, c_ptxt = "#F1F5F9", "#CBD5E1", "#475569"
-            
-        canvas_fixture.create_rectangle(px1, py1, px2, py2, fill=c_pbg, outline=c_pbd, width=1)
-        font_sz_c = max(8, min(10, int(card_h * 0.17)))
-        
-        # Si la coordenada está visible, mostrar 🔍 y valores; si está oculta, mostrar 🔍 y viñetas
-        es_visible_coord = coordenadas_visibles_map.get(i, True)
         if es_visible_coord:
+            num_y = y1 + card_h * 0.25
+            font_sz = max(9, min(13, int(card_h * 0.24)))
+            canvas_fixture.create_text(
+                num_x, num_y,
+                text=f"{i+1:02d}",
+                font=(FONT_MAIN, font_sz, "bold"),
+                fill=c_txt
+            )
+            
+            # 2. Coordenadas a las que se envía este punto (X e Y) debajo del número
+            coord_x = num_x
+            coord_y = y1 + card_h * 0.69
+            
+            pill_w = card_w * 0.44
+            pill_h = card_h * 0.40
+            px1 = coord_x - pill_w / 2
+            py1 = coord_y - pill_h / 2
+            px2 = coord_x + pill_w / 2
+            py2 = coord_y + pill_h / 2
+            
+            if st == "activa":
+                c_pbg, c_pbd, c_ptxt = "#DBEAFE", "#93C5FD", "#1E40AF"
+            elif st in ("ok", "nok"):
+                c_pbg, c_pbd, c_ptxt = "#DCFCE7", "#86EFAC", "#065F46"
+            else:
+                c_pbg, c_pbd, c_ptxt = "#F1F5F9", "#CBD5E1", "#475569"
+                
+            canvas_fixture.create_rectangle(px1, py1, px2, py2, fill=c_pbg, outline=c_pbd, width=1)
+            font_sz_c = max(7, min(9, int(card_h * 0.16)))
             canvas_fixture.create_text(
                 coord_x, coord_y,
-                text=f"🔍\nX:{cx:.1f}\nY:{cy:.1f}",
+                text=f"X:{cx:.1f}\nY:{cy:.1f}",
                 font=(FONT_MONO, font_sz_c, "bold"),
                 fill=c_ptxt,
                 justify="center"
             )
         else:
+            # Al estar ocultas, el número se centra con tipografía amplia y clara
+            num_y = y1 + card_h * 0.50
+            font_sz = max(11, min(16, int(card_h * 0.34)))
             canvas_fixture.create_text(
-                coord_x, coord_y,
-                text="🔍\n••••",
-                font=(FONT_MONO, font_sz_c + 1, "bold"),
-                fill=c_ptxt,
-                justify="center"
+                num_x, num_y,
+                text=f"{i+1:02d}",
+                font=(FONT_MAIN, font_sz, "bold"),
+                fill=c_txt
             )
         
         # 3. Ícono / Imagen de la pieza a la derecha
@@ -3802,26 +3783,11 @@ col_3 = ctk.CTkFrame(body_grid, fg_color="transparent")
 col_3.grid(row=0, column=2, sticky="nsew", padx=6)
 
 # Tarjeta Única: Operación y Avance + Movimiento Manual JOG
-card_jog = crear_card_moderna(
-    col_3, 
-    "Operación & Movimiento JOG",
-    btn_widget=lambda h: ctk.CTkButton(
-        h, 
-        text="▶ Ocultar", 
-        width=75, 
-        height=24, 
-        font=(FONT_MAIN, 10, "bold"), 
-        fg_color="#E2E8F0", 
-        hover_color=BORDER_CARD, 
-        text_color=TEXT_PRIMARY, 
-        corner_radius=4, 
-        command=alternar_columna_derecha
-    )
-)
-card_jog.pack(fill="both", expand=True, pady=(0, 6))
+card_jog = crear_card_moderna(col_3, "Operación & Movimiento JOG")
+card_jog.pack(fill="x", pady=(0, 6))
 
 f_jog_b = ctk.CTkFrame(card_jog, fg_color="transparent")
-f_jog_b.pack(fill="both", expand=True, padx=12, pady=8)
+f_jog_b.pack(fill="x", padx=12, pady=8)
 
 # ------------------------------------------------------------------------------
 # 1. SECCIÓN SUPERIOR: OPERACIÓN Y AVANCE
@@ -3980,54 +3946,54 @@ lbl_cero_jog_val.pack(anchor="w", padx=10, pady=(0, 6))
 # MANDOS MAESTROS DE MARCHA (LADO DERECHO INFERIOR: PARO, INICIO, RESET)
 # ==============================================================================
 card_mandos_der = crear_card_moderna(col_3, "Mandos de Control")
-card_mandos_der.pack(fill="x", pady=(4, 0))
+card_mandos_der.pack(fill="both", expand=True, pady=(6, 0))
 
 f_mandos_der_b = ctk.CTkFrame(card_mandos_der, fg_color="transparent")
-f_mandos_der_b.pack(fill="x", padx=10, pady=8)
+f_mandos_der_b.pack(fill="both", expand=True, padx=12, pady=12)
 
 # Fila superior: INICIO y RESET lado a lado
 f_ir_row = ctk.CTkFrame(f_mandos_der_b, fg_color="transparent")
-f_ir_row.pack(fill="x", pady=(0, 4))
+f_ir_row.pack(fill="both", expand=True, pady=(0, 8))
 
 btn_inicio = ctk.CTkButton(
     f_ir_row,
     text="▶  INICIO",
-    font=(FONT_MAIN, 14, "bold"),
+    font=(FONT_MAIN, 15, "bold"),
     fg_color=COLOR_OK,
     hover_color=COLOR_OK_HOVER,
     text_color="white",
     corner_radius=8,
-    height=42,
+    height=54,
     command=iniciar_ciclo_general
 )
-btn_inicio.pack(side="left", fill="x", expand=True, padx=(0, 3))
+btn_inicio.pack(side="left", fill="both", expand=True, padx=(0, 4))
 
 btn_reset = ctk.CTkButton(
     f_ir_row,
     text="↻  RESET",
-    font=(FONT_MAIN, 13, "bold"),
+    font=(FONT_MAIN, 15, "bold"),
     fg_color=COLOR_WARN,
     hover_color=COLOR_WARN_HOVER,
     text_color="#1E293B",
     corner_radius=8,
-    height=42,
+    height=54,
     command=ejecutar_reset_general
 )
-btn_reset.pack(side="right", fill="x", expand=True, padx=(3, 0))
+btn_reset.pack(side="right", fill="both", expand=True, padx=(4, 0))
 
-# Fila inferior: PARO grande en rojo
+# Fila inferior: PARO grande en rojo (escalado)
 btn_stop = ctk.CTkButton(
     f_mandos_der_b,
     text="🛑  PARO",
-    font=(FONT_MAIN, 15, "bold"),
+    font=(FONT_MAIN, 17, "bold"),
     fg_color=COLOR_NOK,
     hover_color=COLOR_NOK_HOVER,
     text_color="white",
     corner_radius=8,
-    height=46,
+    height=62,
     command=alternar_stop
 )
-btn_stop.pack(fill="x", pady=(2, 0))
+btn_stop.pack(fill="both", expand=True, pady=(4, 0))
 
 # ------------------------------------------------------------------------------
 # 5.3. PANTALLA 3: MÓDULO ADMINISTRADOR (ESTILO 1:1 INTERFAZ_KOSTAL)
@@ -4130,26 +4096,26 @@ def crear_btn_nav_admin(nombre, texto_icono):
     admin_nav_btns[nombre] = btn
     return btn
 
+# Botón Volver al Panel Principal (al inicio del menú de administración)
+btn_nav_volver = ctk.CTkButton(
+    f_adm_nav,
+    text="⬅  Volver",
+    anchor="w",
+    font=(FONT_MAIN, 12, "bold"),
+    fg_color=COLOR_KOSTAL_ACCENT,
+    hover_color="#243B66",
+    text_color="white",
+    corner_radius=6,
+    height=40,
+    command=volver_a_panel_operador
+)
+btn_nav_volver.pack(fill="x", padx=10, pady=(4, 10))
+
 # Botones de navegación con iconos y textos fieles a las imágenes
 crear_btn_nav_admin("recetas", "📖  Recetario")
 crear_btn_nav_admin("excel", "📈  Estadísticas")
 crear_btn_nav_admin("usuarios", "👥  Usuarios")
 crear_btn_nav_admin("ajustes", "⚙  Ajustes Globales")
-
-# Botón Activa (Retorno al Panel Principal de Operación como en los Mockups)
-btn_nav_activa = ctk.CTkButton(
-    f_adm_nav,
-    text="🖥  Activa",
-    anchor="w",
-    font=(FONT_MAIN, 11, "bold"),
-    fg_color="transparent",
-    hover_color="#243B66",
-    text_color="#93C5FD",
-    corner_radius=6,
-    height=40,
-    command=volver_a_panel_operador
-)
-btn_nav_activa.pack(fill="x", padx=10, pady=3)
 
 # Spacer inferior en la sidebar
 f_sb_spacer = ctk.CTkFrame(f_adm_nav, fg_color="transparent")
