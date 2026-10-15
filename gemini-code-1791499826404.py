@@ -2255,10 +2255,20 @@ def alternar_ver_contrasena():
     mostrar_pass = not mostrar_pass
     if mostrar_pass:
         entry_pass.configure(show="")
-        btn_ver_pass.configure(text="🙈")
+        btn_ver_pass.configure(
+            text="👁",
+            fg_color="#DBEAFE",
+            hover_color="#BFDBFE",
+            text_color="#1D4ED8"
+        )
     else:
         entry_pass.configure(show="•")
-        btn_ver_pass.configure(text="👁")
+        btn_ver_pass.configure(
+            text="👁",
+            fg_color=BG_INPUT,
+            hover_color=BORDER_LIGHT,
+            text_color=TEXT_PRIMARY
+        )
 
 def alternar_columna_derecha():
     pass
