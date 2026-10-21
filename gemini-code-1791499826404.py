@@ -613,7 +613,7 @@ def actualizar_ui_matriz():
     if 'lbl_matriz_dim_badge' in globals():
         lbl_matriz_dim_badge.configure(text=f"📐 MATRIZ: {matriz_filas} × {matriz_cols} ({matriz_total} PTS)")
     if 'lbl_matriz_dist_badge' in globals():
-        lbl_matriz_dist_badge.configure(text=f"↔ Centro X: {matriz_delta_x:.1f} mm  |  ↕ Centro Y: {matriz_delta_y:.1f} mm  |  ↗ Diagonal: {matriz_dist_diag:.2f} mm")
+        lbl_matriz_dist_badge.configure(text=f"↔ X: {matriz_delta_x:.1f} mm  |  ↕ Y: {matriz_delta_y:.1f} mm  |  ↗ Diag: {matriz_dist_diag:.1f} mm")
     if 'card_fixture' in globals() and hasattr(card_fixture, '_header_title'):
         card_fixture._header_title.configure(text=f"ESTADO DEL FIXTURE (MATRIZ {matriz_filas} × {matriz_cols})")
 
@@ -1254,7 +1254,7 @@ def cargar_receta_por_nombre(nombre_receta, mostrar_modal_aviso=True):
         maquina_en_home = False
         if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
             lbl_indicador_set0.configure(
-                text=f"⚠️ SET 0 PENDIENTE: Calibre origen para '{nombre_receta}' con JOG y presione '↩ Set 0'",
+                text="⚠️ SET 0 PENDIENTE: Calibre origen con JOG y presione 'Set 0'",
                 text_color="#B45309"
             )
         if 'f_cero_ind' in globals() and f_cero_ind:
@@ -1695,11 +1695,11 @@ def guardar_posicion_como_cero():
         cero_ha_sido_seteado = True
         
         if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
-            lbl_indicador_set0.configure(text=f"✓ CERO PINTADO LISTO: X={cero_guardado_x:.2f}  Y={cero_guardado_y:.2f} mm", text_color="#065F46")
+            lbl_indicador_set0.configure(text=f"✓ CERO LISTO: X={cero_guardado_x:.2f}  Y={cero_guardado_y:.2f} mm", text_color="#065F46")
         if 'f_cero_ind' in globals() and f_cero_ind:
             f_cero_ind.configure(fg_color="#ECFDF5", border_color="#A7F3D0")
         if 'lbl_cero_jog_val' in globals() and lbl_cero_jog_val:
-            lbl_cero_jog_val.configure(text=f"X = {cero_guardado_x:.2f} mm   |   Y = {cero_guardado_y:.2f} mm")
+            lbl_cero_jog_val.configure(text=f"X: {cero_guardado_x:.2f} mm  |  Y: {cero_guardado_y:.2f} mm")
         lbl_estado.configure(text=f"✓ Set 0 calibrado exitosamente en X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f} mm. Listo para pintar.", text_color=COLOR_OK)
         if '_tutorial_activo' in globals() and _tutorial_activo and _paso_tutorial_actual == 2:
             notificar_accion_tutorial(2, delay_ms=800)
@@ -2159,10 +2159,12 @@ def actualizar_telemetria_plc(dest_x=None, dest_y=None):
                     motivos_bloqueo.append("⚙ MODO AUTO (Cruzeta bloqueada por PLC)")
                     
                 if motivos_bloqueo:
-                    txt_itlk = "Bloqueo: " + " | ".join(motivos_bloqueo)
+                    txt_itlk = " | ".join(motivos_bloqueo[:3])
+                    if len(motivos_bloqueo) > 3:
+                        txt_itlk += f" (+{len(motivos_bloqueo)-3})"
                     c_itlk = "#DC2626"
                 else:
-                    txt_itlk = "✓ Interlocks OK: Energizado, Listo, Sin Alarmas, Modo Cruzeta Habilitado"
+                    txt_itlk = "✓ Interlocks OK: Energizado, Listo, Modo Cruzeta Habilitado"
                     c_itlk = "#059669"
                 lbl_tel_interlock.configure(text=txt_itlk, text_color=c_itlk)
         else:
@@ -3366,9 +3368,9 @@ btn_fs_top.pack(side="left", padx=(0, 10), pady=8)
 body_grid = ctk.CTkFrame(frame_operador, fg_color=BG_MAIN, corner_radius=0)
 body_grid.pack(fill="both", expand=True, padx=12, pady=10)
 
-body_grid.columnconfigure(0, weight=28)
-body_grid.columnconfigure(1, weight=46)
-body_grid.columnconfigure(2, weight=26)
+body_grid.columnconfigure(0, weight=26, uniform="side_cols")
+body_grid.columnconfigure(1, weight=48)
+body_grid.columnconfigure(2, weight=26, uniform="side_cols")
 body_grid.rowconfigure(0, weight=1)
 
 def crear_card_moderna(parent, titulo=None, btn_widget=None):
@@ -3434,7 +3436,7 @@ option_receta = ctk.CTkOptionMenu(
     corner_radius=6,
     height=28,
     font=(FONT_MAIN, 10, "bold"),
-    width=175
+    width=155
 )
 option_receta.set(receta_activa_nom)
 option_receta.pack(side="right")
@@ -3473,9 +3475,11 @@ f_cero_ind = ctk.CTkFrame(
 f_cero_ind.pack(fill="x", pady=4)
 lbl_indicador_set0 = ctk.CTkLabel(
     f_cero_ind, 
-    text=f"✓ CERO PINTADO LISTO: X={cero_guardado_x:.2f}  Y={cero_guardado_y:.2f} mm" if cero_ha_sido_seteado else "⚠️ SET 0 PENDIENTE: Calibre con JOG y presione '↩ Set 0'",
-    font=(FONT_MONO, 11, "bold"),
-    text_color="#065F46" if cero_ha_sido_seteado else "#B45309"
+    text=f"✓ CERO LISTO: X={cero_guardado_x:.2f}  Y={cero_guardado_y:.2f} mm" if cero_ha_sido_seteado else "⚠️ SET 0 PENDIENTE: Calibre con JOG y presione 'Set 0'",
+    font=(FONT_MONO, 10, "bold"),
+    text_color="#065F46" if cero_ha_sido_seteado else "#B45309",
+    wraplength=250,
+    justify="center"
 )
 lbl_indicador_set0.pack(pady=4)
 
@@ -3514,12 +3518,12 @@ btn_fin_de_hora = ctk.CTkButton(
 )
 btn_fin_de_hora.pack(fill="x", pady=(3, 6))
 
-# 2. Control Principal: Botón Maestro de Pintado (Grande y Circular)
+# 2. Control Principal: Botón Maestro de Pintado (Diseño Industrial Ergonómico)
 card_marcha = crear_card_moderna(col_1, "Control Principal de Pintado")
 card_marcha.pack(fill="both", expand=True, pady=(6, 0))
 
 f_marcha_b = ctk.CTkFrame(card_marcha, fg_color="transparent")
-f_marcha_b.pack(fill="both", expand=True, padx=14, pady=12)
+f_marcha_b.pack(fill="both", expand=True, padx=14, pady=10)
 
 f_pintar_center = ctk.CTkFrame(f_marcha_b, fg_color="transparent")
 f_pintar_center.pack(expand=True, fill="both")
@@ -3527,18 +3531,26 @@ f_pintar_center.pack(expand=True, fill="both")
 btn_pintar = ctk.CTkButton(
     f_pintar_center,
     text="🎨\nINICIO DE\nPINTADO\n[OFF]",
-    font=(FONT_MAIN, 16, "bold"),
+    font=(FONT_MAIN, 15, "bold"),
     fg_color=COLOR_KOSTAL_NAVY,
     hover_color=COLOR_KOSTAL_ACCENT,
     text_color="white",
-    corner_radius=80,
-    width=160,
-    height=160,
-    border_width=4,
+    corner_radius=22,
+    width=170,
+    height=125,
+    border_width=3,
     border_color="#CBD5E1",
     command=alternar_pintar
 )
-btn_pintar.pack(expand=True, pady=14)
+btn_pintar.pack(expand=True, pady=(8, 4))
+
+lbl_pintar_sub = ctk.CTkLabel(
+    f_pintar_center,
+    text="Toque para alternar ciclo automático",
+    font=(FONT_MAIN, 9),
+    text_color=TEXT_MUTED
+)
+lbl_pintar_sub.pack(pady=(0, 6))
 
 # ==============================================================================
 # COLUMNA 2 (CENTRAL): ESTADO DEL FIXTURE (3x5) + DIAGNÓSTICO
@@ -3594,7 +3606,7 @@ lbl_ciclo_badge.pack(side="left", padx=4, pady=3)
 
 lbl_matriz_dist_badge = ctk.CTkLabel(
     f_matriz_info_bar,
-    text=f"↔ Centro a Centro X: {matriz_delta_x:.1f} mm   |   ↕ Centro a Centro Y: {matriz_delta_y:.1f} mm   |   ↗ Diagonal: {matriz_dist_diag:.2f} mm",
+    text=f"↔ X: {matriz_delta_x:.1f} mm  |  ↕ Y: {matriz_delta_y:.1f} mm  |  ↗ Diag: {matriz_dist_diag:.1f} mm",
     font=(FONT_MONO, 10, "bold"),
     text_color=COLOR_KOSTAL_ACCENT
 )
@@ -3677,7 +3689,9 @@ lbl_tel_interlock = ctk.CTkLabel(
     f_tel_cen,
     text="Interlocks: Verificando estados de máquina...",
     font=(FONT_MAIN, 8, "bold"),
-    text_color=TEXT_MUTED
+    text_color=TEXT_MUTED,
+    wraplength=420,
+    justify="center"
 )
 lbl_tel_interlock.pack(pady=(1, 0))
 
@@ -3693,9 +3707,9 @@ def forzar_prueba_movimiento_actual():
 
 btn_probar_mov = ctk.CTkButton(
     f_plc_telemetria_bar,
-    text="⚡ Probar Mover Pieza Actual",
+    text="⚡ Probar Movimiento",
     font=(FONT_MAIN, 9, "bold"),
-    width=160,
+    width=140,
     height=26,
     fg_color=COLOR_KOSTAL_NAVY,
     hover_color=COLOR_KOSTAL_ACCENT,
@@ -3977,13 +3991,13 @@ def crear_pill_ctk(parent, r, c, txt_init, cspan=1):
     lbl = ctk.CTkLabel(
         parent,
         text=txt_init,
-        font=(FONT_MAIN, 11, "bold"),
+        font=(FONT_MAIN, 10, "bold"),
         fg_color="#F8FAFC",
         text_color="#334155",
         corner_radius=6,
-        height=36
+        height=32
     )
-    lbl.grid(row=r, column=c, columnspan=cspan, padx=3, pady=3, sticky="ew")
+    lbl.grid(row=r, column=c, columnspan=cspan, padx=3, pady=2, sticky="ew")
     return lbl
 
 lbl_m_ene   = crear_pill_ctk(f_diag_b, 0, 0, "ENERGIZADOS", cspan=2)
@@ -4016,13 +4030,13 @@ def alternar_pestana_jog(event=None):
         f_jog_b.pack_forget()
         if btn_toggle_jog:
             btn_toggle_jog.configure(
-                text="▼ Desplegar Pestaña",
+                text="▼ Desplegar",
                 fg_color=COLOR_KOSTAL_NAVY,
                 hover_color=COLOR_KOSTAL_ACCENT,
                 text_color="white"
             )
         if hasattr(card_jog, '_header_title'):
-            card_jog._header_title.configure(text="🕹️ OPERACIÓN & JOG")
+            card_jog._header_title.configure(text="OPERACIÓN & JOG")
         if hasattr(card_jog, '_header_frame'):
             card_jog._header_frame.configure(fg_color="#E2E8F0")
     else:
@@ -4030,13 +4044,13 @@ def alternar_pestana_jog(event=None):
         f_jog_b.pack(fill="x", padx=12, pady=8)
         if btn_toggle_jog:
             btn_toggle_jog.configure(
-                text="▲ Retraer en Pestaña",
+                text="▲ Plegar",
                 fg_color="#E2E8F0",
                 hover_color=BORDER_CARD,
                 text_color=COLOR_KOSTAL_NAVY
             )
         if hasattr(card_jog, '_header_title'):
-            card_jog._header_title.configure(text="OPERACIÓN & MOVIMIENTO JOG")
+            card_jog._header_title.configure(text="OPERACIÓN & JOG")
         if hasattr(card_jog, '_header_frame'):
             card_jog._header_frame.configure(fg_color="#F1F5F9")
 
@@ -4044,8 +4058,8 @@ def _widget_btn_toggle_jog(parent_hdr):
     global btn_toggle_jog
     btn_toggle_jog = ctk.CTkButton(
         parent_hdr,
-        text="▲ Retraer en Pestaña",
-        width=135,
+        text="▲ Plegar",
+        width=80,
         height=24,
         font=(FONT_MAIN, 10, "bold"),
         fg_color="#E2E8F0",
@@ -4059,7 +4073,7 @@ def _widget_btn_toggle_jog(parent_hdr):
 # Tarjeta Única: Operación y Avance + Movimiento Manual JOG con botón de pestaña retráctil
 card_jog = crear_card_moderna(
     col_3, 
-    "Operación & Movimiento JOG",
+    "Operación & JOG",
     btn_widget=_widget_btn_toggle_jog
 )
 card_jog.pack(fill="x", pady=(0, 6))
@@ -4072,78 +4086,78 @@ if hasattr(card_jog, '_header_title'):
     card_jog._header_title.configure(cursor="hand2")
 
 f_jog_b = ctk.CTkFrame(card_jog, fg_color="transparent")
-f_jog_b.pack(fill="x", padx=12, pady=8)
+f_jog_b.pack(fill="x", padx=10, pady=6)
 
 # ------------------------------------------------------------------------------
 # 1. SECCIÓN SUPERIOR: OPERACIÓN Y AVANCE
 # ------------------------------------------------------------------------------
 f_sec_op_hdr = ctk.CTkFrame(f_jog_b, fg_color=BG_INPUT, corner_radius=6, border_width=1, border_color=BORDER_LIGHT)
-f_sec_op_hdr.pack(fill="x", pady=(0, 6))
-ctk.CTkLabel(f_sec_op_hdr, text="⚡ OPERACIÓN Y AVANCE", font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left", padx=8, pady=4)
+f_sec_op_hdr.pack(fill="x", pady=(0, 5))
+ctk.CTkLabel(f_sec_op_hdr, text="⚡ OPERACIÓN", font=(FONT_MAIN, 10, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left", padx=8, pady=3)
 
 # Botón Modo Auto / Manual (destacado)
 btn_manual = ctk.CTkButton(
     f_jog_b,
     text="⚙ MODO: AUTO",
-    font=(FONT_MAIN, 13, "bold"),
+    font=(FONT_MAIN, 12, "bold"),
     fg_color=COLOR_KOSTAL_NAVY,
     hover_color=COLOR_KOSTAL_ACCENT,
     text_color="white",
     border_width=1,
     border_color=COLOR_KOSTAL_LIGHT,
     corner_radius=8,
-    height=40,
+    height=36,
     command=alternar_manual
 )
 btn_manual.pack(fill="x", pady=(0, 6))
 
 # Velocidad General
 f_vel_row = ctk.CTkFrame(f_jog_b, fg_color="transparent")
-f_vel_row.pack(fill="x", pady=(0, 8))
-ctk.CTkLabel(f_vel_row, text="Velocidad General:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
-caja_vel = ctk.CTkEntry(f_vel_row, width=70, height=30, font=(FONT_MONO, 11, "bold"), justify="center", corner_radius=4)
+f_vel_row.pack(fill="x", pady=(0, 6))
+ctk.CTkLabel(f_vel_row, text="Velocidad:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
+caja_vel = ctk.CTkEntry(f_vel_row, width=55, height=28, font=(FONT_MONO, 10, "bold"), justify="center", corner_radius=4)
 caja_vel.insert(0, str(config_actual.get("velocidad", "100")))
 caja_vel.pack(side="right", padx=(2, 0))
-ctk.CTkLabel(f_vel_row, text="mm/s", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).pack(side="right")
+ctk.CTkLabel(f_vel_row, text="mm/s", font=(FONT_MAIN, 9), text_color=TEXT_MUTED).pack(side="right")
 
 # Divisor sutil
 sep_jog = ctk.CTkFrame(f_jog_b, fg_color=BORDER_LIGHT, height=1)
-sep_jog.pack(fill="x", pady=(2, 8))
+sep_jog.pack(fill="x", pady=(2, 6))
 
 # ------------------------------------------------------------------------------
 # 2. SECCIÓN INFERIOR: MOVIMIENTO MANUAL JOG
 # ------------------------------------------------------------------------------
 f_sec_jog_hdr = ctk.CTkFrame(f_jog_b, fg_color=BG_INPUT, corner_radius=6, border_width=1, border_color=BORDER_LIGHT)
-f_sec_jog_hdr.pack(fill="x", pady=(0, 6))
-ctk.CTkLabel(f_sec_jog_hdr, text="🕹️ MOVIMIENTO MANUAL JOG", font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left", padx=8, pady=4)
+f_sec_jog_hdr.pack(fill="x", pady=(0, 5))
+ctk.CTkLabel(f_sec_jog_hdr, text="🕹️ JOG MANUAL", font=(FONT_MAIN, 10, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left", padx=8, pady=3)
 
 # Paso de Movimiento
 f_step_row = ctk.CTkFrame(f_jog_b, fg_color="transparent")
 f_step_row.pack(fill="x", pady=(0, 6))
-ctk.CTkLabel(f_step_row, text="Paso de Movimiento:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
-caja_paso = ctk.CTkEntry(f_step_row, width=65, height=30, font=(FONT_MONO, 11, "bold"), justify="center", corner_radius=4)
+ctk.CTkLabel(f_step_row, text="Paso JOG:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
+caja_paso = ctk.CTkEntry(f_step_row, width=55, height=28, font=(FONT_MONO, 10, "bold"), justify="center", corner_radius=4)
 caja_paso.insert(0, str(config_actual.get("paso_jog", "5.0")))
 caja_paso.pack(side="right", padx=(2, 0))
-ctk.CTkLabel(f_step_row, text="mm", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).pack(side="right")
+ctk.CTkLabel(f_step_row, text="mm", font=(FONT_MAIN, 9), text_color=TEXT_MUTED).pack(side="right")
 
 # Cruzeta y Coordenadas
 f_jog_ctrl = ctk.CTkFrame(f_jog_b, fg_color="transparent")
 f_jog_ctrl.pack(fill="x", pady=2)
 
 f_coord_box = ctk.CTkFrame(f_jog_ctrl, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_LIGHT)
-f_coord_box.pack(side="left", padx=(0, 10), pady=2)
+f_coord_box.pack(side="left", padx=(0, 6), pady=2)
 
-ctk.CTkLabel(f_coord_box, text="COORDENADAS (0-200)", font=(FONT_MAIN, 8, "bold"), text_color=TEXT_MUTED).pack(padx=8, pady=(4, 0))
+ctk.CTkLabel(f_coord_box, text="COORD (0-200)", font=(FONT_MAIN, 8, "bold"), text_color=TEXT_MUTED).pack(padx=6, pady=(3, 0))
 fc_x = ctk.CTkFrame(f_coord_box, fg_color="transparent")
-fc_x.pack(fill="x", padx=8, pady=1)
-ctk.CTkLabel(fc_x, text="X:", font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left")
-lbl_jog_coord_x = ctk.CTkLabel(fc_x, text=f"{cero_guardado_x:.2f}", font=(FONT_MONO, 13, "bold"), text_color=TEXT_PRIMARY)
+fc_x.pack(fill="x", padx=6, pady=1)
+ctk.CTkLabel(fc_x, text="X:", font=(FONT_MAIN, 10, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left")
+lbl_jog_coord_x = ctk.CTkLabel(fc_x, text=f"{cero_guardado_x:.2f}", font=(FONT_MONO, 11, "bold"), text_color=TEXT_PRIMARY)
 lbl_jog_coord_x.pack(side="right")
 
 fc_y = ctk.CTkFrame(f_coord_box, fg_color="transparent")
-fc_y.pack(fill="x", padx=8, pady=(1, 4))
-ctk.CTkLabel(fc_y, text="Y:", font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left")
-lbl_jog_coord_y = ctk.CTkLabel(fc_y, text=f"{cero_guardado_y:.2f}", font=(FONT_MONO, 13, "bold"), text_color=TEXT_PRIMARY)
+fc_y.pack(fill="x", padx=6, pady=(1, 3))
+ctk.CTkLabel(fc_y, text="Y:", font=(FONT_MAIN, 10, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left")
+lbl_jog_coord_y = ctk.CTkLabel(fc_y, text=f"{cero_guardado_y:.2f}", font=(FONT_MONO, 11, "bold"), text_color=TEXT_PRIMARY)
 lbl_jog_coord_y.pack(side="right")
 
 f_pad = ctk.CTkFrame(f_jog_ctrl, fg_color="transparent")
@@ -4153,54 +4167,54 @@ def btn_pad(parent, txt, cmd):
     return ctk.CTkButton(
         parent,
         text=txt,
-        font=(FONT_MAIN, 13, "bold"),
+        font=(FONT_MAIN, 12, "bold"),
         fg_color="#FFFFFF",
         hover_color="#F1F5F9",
         text_color="#1E293B",
         border_width=1,
         border_color=BORDER_LIGHT,
         corner_radius=6,
-        width=52,
-        height=36,
+        width=42,
+        height=34,
         command=cmd
     )
 
 btn_y_mas = btn_pad(f_pad, "▲", lambda: mover_cruzeta('Y', 1))
-btn_y_mas.grid(row=0, column=1, pady=2)
+btn_y_mas.grid(row=0, column=1, pady=1)
 
 btn_x_menos = btn_pad(f_pad, "◄", lambda: mover_cruzeta('X', -1))
-btn_x_menos.grid(row=1, column=0, padx=2)
+btn_x_menos.grid(row=1, column=0, padx=1)
 
-ctk.CTkLabel(f_pad, text="○", font=(FONT_MAIN, 11), text_color=TEXT_MUTED).grid(row=1, column=1)
+ctk.CTkLabel(f_pad, text="○", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).grid(row=1, column=1)
 
 btn_x_mas = btn_pad(f_pad, "►", lambda: mover_cruzeta('X', 1))
-btn_x_mas.grid(row=1, column=2, padx=2)
+btn_x_mas.grid(row=1, column=2, padx=1)
 
 btn_y_menos = btn_pad(f_pad, "▼", lambda: mover_cruzeta('Y', -1))
-btn_y_menos.grid(row=2, column=1, pady=2)
+btn_y_menos.grid(row=2, column=1, pady=1)
 
 # Botones de Referencia (Estilo Imagen 5)
 f_refs = ctk.CTkFrame(f_jog_b, fg_color="transparent")
-f_refs.pack(fill="x", pady=(6, 0))
+f_refs.pack(fill="x", pady=(4, 0))
 
 def btn_ref_flat(parent, txt, cmd, colr="#FFFFFF", text_c="#334155"):
     return ctk.CTkButton(
         parent,
         text=txt,
-        font=(FONT_MAIN, 11, "bold"),
+        font=(FONT_MAIN, 10, "bold"),
         fg_color=colr,
         hover_color="#F8FAFC",
         text_color=text_c,
         border_width=1,
         border_color=BORDER_LIGHT,
         corner_radius=6,
-        height=34,
+        height=32,
         command=cmd
     )
 
 f_rf1 = ctk.CTkFrame(f_refs, fg_color="transparent")
 f_rf1.pack(fill="x", pady=2)
-btn_ir_home = btn_ref_flat(f_rf1, "🏠 Ir a home", ejecutar_home_general)
+btn_ir_home = btn_ref_flat(f_rf1, "🏠 Home", ejecutar_home_general)
 btn_ir_home.pack(side="left", expand=True, fill="x", padx=2)
 btn_set_home = btn_ref_flat(f_rf1, "⚙ Set Home", guardar_posicion_como_home)
 btn_set_home.pack(side="left", expand=True, fill="x", padx=2)
@@ -4212,20 +4226,20 @@ btn_set_cero.pack(side="left", expand=True, fill="x", padx=2)
 
 # DISPLAY NO EDITABLE DE CERO GUARDADO (INFERIOR DE CRUZETA)
 f_cero_readonly = ctk.CTkFrame(f_jog_b, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_CARD)
-f_cero_readonly.pack(fill="x", pady=(8, 2))
+f_cero_readonly.pack(fill="x", pady=(6, 2))
 
 f_cro_hdr = ctk.CTkFrame(f_cero_readonly, fg_color="transparent")
-f_cro_hdr.pack(fill="x", padx=10, pady=(6, 2))
-ctk.CTkLabel(f_cro_hdr, text="🔒 CERO REGISTRADO (NO EDITABLE):", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).pack(side="left")
-ctk.CTkLabel(f_cro_hdr, text="INICIO DE PINTADO", font=(FONT_MAIN, 9, "bold"), text_color=COLOR_OK, fg_color=COLOR_OK_SOFT, corner_radius=4, padx=6).pack(side="right")
+f_cro_hdr.pack(fill="x", padx=8, pady=(4, 1))
+ctk.CTkLabel(f_cro_hdr, text="🔒 CERO REGISTRADO:", font=(FONT_MAIN, 9, "bold"), text_color=TEXT_MUTED).pack(side="left")
+ctk.CTkLabel(f_cro_hdr, text="ORIGEN", font=(FONT_MAIN, 8, "bold"), text_color=COLOR_OK, fg_color=COLOR_OK_SOFT, corner_radius=4, padx=5).pack(side="right")
 
 lbl_cero_jog_val = ctk.CTkLabel(
     f_cero_readonly,
-    text=f"X = {cero_guardado_x:.2f} mm   |   Y = {cero_guardado_y:.2f} mm",
-    font=(FONT_MONO, 13, "bold"),
+    text=f"X: {cero_guardado_x:.2f} mm  |  Y: {cero_guardado_y:.2f} mm",
+    font=(FONT_MONO, 11, "bold"),
     text_color=COLOR_KOSTAL_NAVY
 )
-lbl_cero_jog_val.pack(anchor="w", padx=10, pady=(0, 6))
+lbl_cero_jog_val.pack(anchor="w", padx=8, pady=(0, 4))
 
 # ==============================================================================
 # MANDOS MAESTROS DE MARCHA (LADO DERECHO INFERIOR: PARO, INICIO, RESET)
@@ -4234,48 +4248,48 @@ card_mandos_der = crear_card_moderna(col_3, "Mandos de Control")
 card_mandos_der.pack(fill="both", expand=True, pady=(6, 0))
 
 f_mandos_der_b = ctk.CTkFrame(card_mandos_der, fg_color="transparent")
-f_mandos_der_b.pack(fill="both", expand=True, padx=12, pady=12)
+f_mandos_der_b.pack(fill="both", expand=True, padx=10, pady=10)
 
 # Fila superior: INICIO y RESET lado a lado
 f_ir_row = ctk.CTkFrame(f_mandos_der_b, fg_color="transparent")
-f_ir_row.pack(fill="both", expand=True, pady=(0, 8))
+f_ir_row.pack(fill="both", expand=True, pady=(0, 6))
 
 btn_inicio = ctk.CTkButton(
     f_ir_row,
     text="▶  INICIO",
-    font=(FONT_MAIN, 15, "bold"),
+    font=(FONT_MAIN, 13, "bold"),
     fg_color=COLOR_OK,
     hover_color=COLOR_OK_HOVER,
     text_color="white",
     corner_radius=8,
-    height=54,
+    height=48,
     command=iniciar_ciclo_general
 )
-btn_inicio.pack(side="left", fill="both", expand=True, padx=(0, 4))
+btn_inicio.pack(side="left", fill="both", expand=True, padx=(0, 3))
 
 btn_reset = ctk.CTkButton(
     f_ir_row,
     text="↻  RESET",
-    font=(FONT_MAIN, 15, "bold"),
+    font=(FONT_MAIN, 13, "bold"),
     fg_color=COLOR_WARN,
     hover_color=COLOR_WARN_HOVER,
     text_color="#1E293B",
     corner_radius=8,
-    height=54,
+    height=48,
     command=ejecutar_reset_general
 )
-btn_reset.pack(side="right", fill="both", expand=True, padx=(4, 0))
+btn_reset.pack(side="right", fill="both", expand=True, padx=(3, 0))
 
 # Fila inferior: PARO grande en rojo (escalado)
 btn_stop = ctk.CTkButton(
     f_mandos_der_b,
     text="🛑  PARO",
-    font=(FONT_MAIN, 17, "bold"),
+    font=(FONT_MAIN, 15, "bold"),
     fg_color=COLOR_NOK,
     hover_color=COLOR_NOK_HOVER,
     text_color="white",
     corner_radius=8,
-    height=62,
+    height=54,
     command=alternar_stop
 )
 btn_stop.pack(fill="both", expand=True, pady=(4, 0))
