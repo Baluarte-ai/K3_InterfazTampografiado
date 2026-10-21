@@ -51,39 +51,17 @@ try:
     ctk.CTkButton._create_bindings = _patched_btn_create_bindings
     ctk.CTkButton._on_release = _patched_btn_on_release
 
-    # Función para invocar el teclado virtual Onboard en Linux
-    def mostrar_teclado_onboard(e=None):
-        if sys.platform.startswith("linux"):
-            try:
-                import subprocess
-                subprocess.Popen([
-                    "dbus-send", "--type=method_call",
-                    "--dest=org.onboard.Onboard",
-                    "/org/onboard/Onboard/Keyboard",
-                    "org.onboard.Onboard.Keyboard.Show"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except Exception:
-                try:
-                    import subprocess
-                    subprocess.Popen(["onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                except Exception:
-                    pass
-
-    # En CTkEntry, asegurar enfoque inmediato y desplegar el teclado Onboard al tocar
+    # En CTkEntry, asegurar que al tocar en cualquier punto del recuadro reciba foco inmediato
     _orig_entry_init = ctk.CTkEntry.__init__
     def _patched_entry_init(self, *args, **kwargs):
         _orig_entry_init(self, *args, **kwargs)
         def _al_tocar_entry(e=None):
             try:
                 self._entry.focus_set()
-                mostrar_teclado_onboard()
             except Exception:
                 pass
         if hasattr(self, "_canvas") and self._canvas is not None:
             self._canvas.bind("<Button-1>", _al_tocar_entry, add="+")
-        if hasattr(self, "_entry") and self._entry is not None:
-            self._entry.bind("<FocusIn>", lambda e: mostrar_teclado_onboard(), add="+")
-            self._entry.bind("<Button-1>", lambda e: mostrar_teclado_onboard(), add="+")
     ctk.CTkEntry.__init__ = _patched_entry_init
 
     # -------------------------------------------------------------------------
@@ -2746,7 +2724,7 @@ ventana.minsize(1100, 720)
 ventana.configure(fg_color=BG_MAIN)
 ventana.protocol("WM_DELETE_WINDOW", cerrar_aplicacion)
 
-# Modo Maximizado para pantalla completa (Permite que el teclado Onboard flote por encima sin quedar oculto)
+# Modo Maximizado para pantalla completa
 try:
     if sys.platform.startswith("linux"):
         ventana.attributes("-zoomed", True)
@@ -2760,7 +2738,10 @@ except Exception:
     except Exception as _e_fs:
         print(f"Aviso al maximizar ventana: {_e_fs}")
 
-# Asegurar foco a la ventana para recepción de teclado
+# Traer la interfaz al frente de la terminal y asegurar foco
+ventana.lift()
+ventana.attributes("-topmost", True)
+ventana.after(600, lambda: ventana.attributes("-topmost", False))
 ventana.focus_force()
 
 # Atajos para alternar pantalla completa o salir con teclado
