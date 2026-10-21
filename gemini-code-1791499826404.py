@@ -2344,10 +2344,16 @@ def alternar_pantalla_completa():
 # 4. LÓGICA DE LOGIN Y DISPARO CONDICIONAL DE INICIO
 # ==============================================================================
 def buscar_recurso(nombre_archivo):
+    if not nombre_archivo:
+        return None
+    if os.path.exists(nombre_archivo):
+        return nombre_archivo
     base_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+    archivo_base = os.path.basename(nombre_archivo)
     posibles_rutas = [
+        os.path.join(base_dir, "Assets", archivo_base),
+        os.path.join(base_dir, archivo_base),
         os.path.join(base_dir, "Assets", nombre_archivo),
-        os.path.join(r"C:\Users\eliza\Desktop\Interfaz_KOSTAL\Assets", nombre_archivo),
         os.path.join(base_dir, nombre_archivo)
     ]
     for r in posibles_rutas:
