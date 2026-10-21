@@ -23,9 +23,11 @@ try:
         if self._state not in ("disabled", tk.DISABLED):
             ahora = time.time()
             ultimo = getattr(self, "_ultimo_toque_ts", 0)
-            if ahora - ultimo < 0.20:
+            if ahora - ultimo < 0.15:
                 return
             self._ultimo_toque_ts = ahora
+            self._mouse_inside = True
+            self._on_leave()
             self._click_animation_running = True
             self.after(100, self._click_animation)
             if self._command is not None:
@@ -34,13 +36,14 @@ try:
     _orig_btn_draw = ctk.CTkButton._draw
     def _patched_btn_draw(self, no_color_updates=False):
         _orig_btn_draw(self, no_color_updates)
-        for w in [self._canvas, self._text_label, self._image_label]:
-            if w is not None:
-                try:
-                    w.bind("<Button-1>", lambda e: self._on_release(e), add="+")
-                    w.bind("<ButtonRelease-1>", lambda e: self._on_release(e), add="+")
-                except Exception:
-                    pass
+        if not getattr(self, "_touch_bound", False):
+            self._touch_bound = True
+            for w in [self._canvas, self._text_label, self._image_label]:
+                if w is not None:
+                    try:
+                        w.bind("<Button-1>", lambda e, s=self: s._on_release(e), add="+")
+                    except Exception:
+                        pass
 
     ctk.CTkButton._on_release = _patched_btn_on_release
     ctk.CTkButton._draw = _patched_btn_draw
