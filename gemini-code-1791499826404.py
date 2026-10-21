@@ -19,37 +19,31 @@ from opcua import Client, ua
 # Además, un ligero deslizamiento del dedo durante el toque activa <Leave>.
 # Este parche asegura que los toques táctiles siempre se registren correctamente.
 try:
-    _orig_btn_create_bindings = ctk.CTkButton._create_bindings
-    def _patched_btn_create_bindings(self, sequence=None):
-        _orig_btn_create_bindings(self, sequence)
-        def _on_press_touch(e=None):
-            self._mouse_inside = True
+    def _patched_btn_on_release(self, event=None):
+        if self._state not in ("disabled", tk.DISABLED):
+            ahora = time.time()
+            ultimo = getattr(self, "_ultimo_toque_ts", 0)
+            if ahora - ultimo < 0.20:
+                return
+            self._ultimo_toque_ts = ahora
+            self._click_animation_running = True
+            self.after(100, self._click_animation)
+            if self._command is not None:
+                self._command()
+
+    _orig_btn_draw = ctk.CTkButton._draw
+    def _patched_btn_draw(self, no_color_updates=False):
+        _orig_btn_draw(self, no_color_updates)
         for w in [self._canvas, self._text_label, self._image_label]:
             if w is not None:
                 try:
-                    w.bind("<Button-1>", _on_press_touch, add="+")
+                    w.bind("<Button-1>", lambda e: self._on_release(e), add="+")
+                    w.bind("<ButtonRelease-1>", lambda e: self._on_release(e), add="+")
                 except Exception:
                     pass
 
-    def _patched_btn_on_release(self, event=None):
-        if self._state not in ("disabled", tk.DISABLED):
-            es_valido = True
-            if event is not None and hasattr(event, "x") and hasattr(event, "y"):
-                w = self.winfo_width()
-                h = self.winfo_height()
-                margen = 40  # Tolerancia en píxeles para el toque del dedo
-                if w > 5 and h > 5:
-                    if not (-margen <= event.x <= w + margen and -margen <= event.y <= h + margen):
-                        es_valido = False
-            if es_valido:
-                self._mouse_inside = False
-                self._click_animation_running = True
-                self.after(100, self._click_animation)
-                if self._command is not None:
-                    self._command()
-
-    ctk.CTkButton._create_bindings = _patched_btn_create_bindings
     ctk.CTkButton._on_release = _patched_btn_on_release
+    ctk.CTkButton._draw = _patched_btn_draw
 
     # En CTkEntry, asegurar que al tocar en cualquier punto del recuadro reciba foco inmediato
     _orig_entry_init = ctk.CTkEntry.__init__
@@ -2798,33 +2792,33 @@ card_login = ctk.CTkFrame(
     corner_radius=12, 
     border_width=1, 
     border_color=BORDER_CARD,
-    width=490
+    width=550
 )
 card_login.place(relx=0.5, rely=0.5, anchor="center")
 
 f_login_inner = ctk.CTkFrame(card_login, fg_color="transparent")
-f_login_inner.pack(padx=44, pady=38, fill="both")
+f_login_inner.pack(padx=28, pady=22, fill="both")
 
 if img_logo_kostal_login:
-    ctk.CTkLabel(f_login_inner, image=img_logo_kostal_login, text="").pack(pady=(0, 10))
+    ctk.CTkLabel(f_login_inner, image=img_logo_kostal_login, text="").pack(pady=(0, 6))
 else:
-    ctk.CTkLabel(f_login_inner, text="KOSTAL", font=(FONT_MAIN, 28, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(pady=(0, 6))
+    ctk.CTkLabel(f_login_inner, text="KOSTAL", font=(FONT_MAIN, 26, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(pady=(0, 4))
 
 ctk.CTkLabel(
     f_login_inner, 
     text="SISTEMA HMI DE INSPECCIÓN", 
-    font=(FONT_MAIN, 19, "bold"), 
+    font=(FONT_MAIN, 17, "bold"), 
     text_color=COLOR_KOSTAL_NAVY
 ).pack(pady=(0, 2))
 
 ctk.CTkLabel(
     f_login_inner, 
     text="Línea de Ensamblado & Calidad KOSTAL", 
-    font=(FONT_MAIN, 13), 
+    font=(FONT_MAIN, 12), 
     text_color=TEXT_SECONDARY
-).pack(pady=(0, 22))
+).pack(pady=(0, 14))
 
-ctk.CTkLabel(f_login_inner, text="Usuario", font=(FONT_MAIN, 13, "bold"), text_color=TEXT_PRIMARY, anchor="w").pack(fill="x", pady=(4, 2))
+ctk.CTkLabel(f_login_inner, text="Usuario", font=(FONT_MAIN, 12, "bold"), text_color=TEXT_PRIMARY, anchor="w").pack(fill="x", pady=(2, 2))
 option_usuario = ctk.CTkOptionMenu(
     f_login_inner,
     values=[f"{u['nombre']} ({u['rol']})" for u in USUARIOS_SISTEMA],
@@ -2835,16 +2829,16 @@ option_usuario = ctk.CTkOptionMenu(
     dropdown_fg_color=BG_CARD,
     dropdown_text_color=TEXT_PRIMARY,
     corner_radius=6,
-    height=42,
-    font=(FONT_MAIN, 13)
+    height=38,
+    font=(FONT_MAIN, 12)
 )
 option_usuario.set(f"{USUARIOS_SISTEMA[0]['nombre']} ({USUARIOS_SISTEMA[0]['rol']})")
-option_usuario.pack(fill="x", pady=(0, 14))
+option_usuario.pack(fill="x", pady=(0, 10))
 
-ctk.CTkLabel(f_login_inner, text="Contraseña", font=(FONT_MAIN, 13, "bold"), text_color=TEXT_PRIMARY, anchor="w").pack(fill="x", pady=(4, 2))
+ctk.CTkLabel(f_login_inner, text="Contraseña", font=(FONT_MAIN, 12, "bold"), text_color=TEXT_PRIMARY, anchor="w").pack(fill="x", pady=(2, 2))
 
 f_pass_row = ctk.CTkFrame(f_login_inner, fg_color="transparent")
-f_pass_row.pack(fill="x", pady=(0, 22))
+f_pass_row.pack(fill="x", pady=(0, 10))
 
 entry_pass = ctk.CTkEntry(
     f_pass_row,
@@ -2854,7 +2848,7 @@ entry_pass = ctk.CTkEntry(
     border_width=1,
     text_color=TEXT_PRIMARY,
     corner_radius=6,
-    height=42,
+    height=40,
     font=(FONT_MAIN, 14),
     placeholder_text="Ingrese su contraseña"
 )
@@ -2863,9 +2857,9 @@ entry_pass.pack(side="left", fill="x", expand=True)
 btn_ver_pass = ctk.CTkButton(
     f_pass_row,
     text="👁",
-    width=42,
-    height=42,
-    font=(FONT_MAIN, 15),
+    width=40,
+    height=40,
+    font=(FONT_MAIN, 14),
     fg_color=BG_INPUT,
     hover_color=BORDER_LIGHT,
     text_color=TEXT_PRIMARY,
@@ -2879,6 +2873,66 @@ btn_ver_pass.pack(side="left", padx=(6, 0))
 # Enfocar automáticamente el campo de contraseña para permitir escritura inmediata
 ventana.after(300, lambda: entry_pass.focus_force())
 
+# -------------------------------------------------------------------------
+# TECLADO TÁCTIL VIRTUAL INTEGRADO (Despliegue automático para contraseña)
+# -------------------------------------------------------------------------
+f_virtual_kb = ctk.CTkFrame(f_login_inner, fg_color="#F8FAFC", corner_radius=10, border_width=1, border_color="#E2E8F0")
+f_virtual_kb.pack(fill="x", pady=(0, 12))
+
+def _escribir_tecla(k):
+    entry_pass.insert("end", k)
+
+def _borrar_tecla():
+    txt = entry_pass.get()
+    if txt:
+        entry_pass.delete(len(txt) - 1, "end")
+
+def _limpiar_tecla():
+    entry_pass.delete(0, "end")
+
+_filas_kb = [
+    ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "⌫"],
+    ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+    ["a", "s", "d", "f", "g", "h", "j", "k", "l", "ñ"],
+    ["z", "x", "c", "v", "b", "n", "m", ".", "_", "C"]
+]
+
+for _idx_r, _fila in enumerate(_filas_kb):
+    _f_row = ctk.CTkFrame(f_virtual_kb, fg_color="transparent")
+    _f_row.pack(fill="x", padx=4, pady=2 if _idx_r > 0 else (4, 2))
+    for _key in _fila:
+        if _key == "⌫":
+            _cmd = _borrar_tecla
+            _bg = "#FEE2E2"
+            _hov = "#FECACA"
+            _txt = "#DC2626"
+        elif _key == "C":
+            _cmd = _limpiar_tecla
+            _bg = "#FEF3C7"
+            _hov = "#FDE68A"
+            _txt = "#D97706"
+        else:
+            _cmd = (lambda ch=_key: _escribir_tecla(ch))
+            _bg = "#FFFFFF"
+            _hov = "#E2E8F0"
+            _txt = COLOR_KOSTAL_NAVY
+        
+        _btn = ctk.CTkButton(
+            _f_row,
+            text=_key,
+            font=(FONT_MAIN, 11, "bold"),
+            fg_color=_bg,
+            hover_color=_hov,
+            text_color=_txt,
+            border_width=1,
+            border_color="#CBD5E1",
+            corner_radius=5,
+            height=34,
+            width=28,
+            command=_cmd
+        )
+        _btn.pack(side="left", fill="x", expand=True, padx=2)
+
 btn_iniciar_sesion = ctk.CTkButton(
     f_login_inner,
     text="Iniciar Sesión  ➜",
@@ -2887,10 +2941,10 @@ btn_iniciar_sesion = ctk.CTkButton(
     hover_color=COLOR_KOSTAL_ACCENT,
     text_color="white",
     corner_radius=6,
-    height=46,
+    height=44,
     command=procesar_login_formulario
 )
-btn_iniciar_sesion.pack(fill="x", pady=(0, 8))
+btn_iniciar_sesion.pack(fill="x", pady=(0, 6))
 
 f_foot = ctk.CTkFrame(f_login_inner, fg_color="transparent")
 f_foot.pack(fill="x", pady=(14, 0))
