@@ -58,6 +58,31 @@ try:
         if hasattr(self, "_canvas") and self._canvas is not None:
             self._canvas.bind("<Button-1>", lambda e: self.focus_set(), add="+")
     ctk.CTkEntry.__init__ = _patched_entry_init
+
+    # -------------------------------------------------------------------------
+    # ESCALADO DE FUENTES PARA PANTALLAS TÁCTILES INDUSTRIALES
+    # Aumenta automáticamente el tamaño de textos para máxima legibilidad
+    # en la pantalla táctil industrial (evitando fuentes microscópicas de 8-10pt)
+    # -------------------------------------------------------------------------
+    _orig_apply_font_scaling = ctk.windows.widgets.scaling.scaling_base_class.CTkScalingBaseClass._apply_font_scaling
+    def _patched_apply_font_scaling(self, font):
+        if isinstance(font, tuple) and len(font) >= 2 and isinstance(font[1], (int, float)):
+            size = font[1]
+            if size <= 8:
+                new_size = 11
+            elif size <= 10:
+                new_size = int(round(size * 1.35))   # 9 -> 12, 10 -> 14
+            elif size <= 12:
+                new_size = int(round(size * 1.30))   # 11 -> 14, 12 -> 16
+            elif size <= 14:
+                new_size = int(round(size * 1.25))   # 13 -> 16, 14 -> 18
+            elif size <= 18:
+                new_size = int(round(size * 1.20))   # 15 -> 18, 17 -> 20, 18 -> 22
+            else:
+                new_size = int(round(size * 1.15))
+            font = (font[0], new_size) + font[2:]
+        return _orig_apply_font_scaling(self, font)
+    ctk.windows.widgets.scaling.scaling_base_class.CTkScalingBaseClass._apply_font_scaling = _patched_apply_font_scaling
 except Exception as _e_patch:
     print(f"Aviso: No se pudo aplicar parche táctil: {_e_patch}")
 
@@ -103,9 +128,9 @@ COLOR_PURPLE_HOVER  = "#6D28D9"
 COLOR_PURPLE_SOFT   = "#F3E8FF"
 COLOR_PURPLE_TEXT   = "#7E22CE"
 
-# Fuentes escaladas industriales
-FONT_MAIN           = "Segoe UI"
-FONT_MONO           = "Consolas"
+# Fuentes escaladas industriales (Adaptativas para Linux Ubuntu y Windows)
+FONT_MAIN           = "Ubuntu" if sys.platform.startswith("linux") else "Segoe UI"
+FONT_MONO           = "Ubuntu Mono" if sys.platform.startswith("linux") else "Consolas"
 
 # ==============================================================================
 # LÍMITES FÍSICOS DE COORDENADAS (0.0 mm a 200.0 mm)
@@ -2274,6 +2299,23 @@ def cerrar_aplicacion():
         pass
     ventana.destroy()
 
+def minimizar_ventana():
+    """Minimiza la ventana asegurando compatibilidad con Linux/X11 y pantalla completa"""
+    try:
+        if ventana.attributes("-fullscreen"):
+            ventana.attributes("-fullscreen", False)
+        ventana.iconify()
+    except Exception as e:
+        print(f"Error al minimizar: {e}")
+
+def alternar_pantalla_completa():
+    """Alterna entre pantalla completa y modo ventana normal"""
+    try:
+        actual = bool(ventana.attributes("-fullscreen"))
+        ventana.attributes("-fullscreen", not actual)
+    except Exception as e:
+        print(f"Error alternando pantalla completa: {e}")
+
 # ==============================================================================
 # 4. LÓGICA DE LOGIN Y DISPARO CONDICIONAL DE INICIO
 # ==============================================================================
@@ -2677,6 +2719,17 @@ ventana.minsize(1100, 720)
 ventana.configure(fg_color=BG_MAIN)
 ventana.protocol("WM_DELETE_WINDOW", cerrar_aplicacion)
 
+# Iniciar automáticamente en Pantalla Completa
+try:
+    ventana.attributes("-fullscreen", True)
+    ventana.after(150, lambda: ventana.attributes("-fullscreen", True))
+except Exception as _e_fs:
+    print(f"Aviso al iniciar pantalla completa: {_e_fs}")
+
+# Atajos para alternar pantalla completa o salir con teclado
+ventana.bind("<F11>", lambda e: alternar_pantalla_completa())
+ventana.bind("<Escape>", lambda e: ventana.attributes("-fullscreen", False))
+
 img_logo_kostal_login = cargar_imagen("LogoKostal.webp", 290, 60)
 img_logo_baluarte_login = cargar_imagen("LOGO_BALUARTE.png", 220, 52)
 img_logo_kostal_hdr = cargar_imagen("LogoKostal.webp", 150, 30)
@@ -2688,6 +2741,38 @@ img_logo_baluarte_panel = cargar_imagen("LOGO_BALUARTE.png", 270, 68)
 # ------------------------------------------------------------------------------
 frame_login = ctk.CTkFrame(ventana, fg_color=BG_MAIN, corner_radius=0)
 frame_login.pack(fill="both", expand=True)
+
+# Barra superior con botones de control de ventana (Minimizar / Pantalla) en Login
+f_login_top_bar = ctk.CTkFrame(frame_login, fg_color="transparent", height=40)
+f_login_top_bar.pack(fill="x", side="top", padx=16, pady=12)
+
+btn_login_fs = ctk.CTkButton(
+    f_login_top_bar,
+    text="⛶ Pantalla",
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color="#E2E8F0",
+    hover_color="#CBD5E1",
+    text_color=COLOR_KOSTAL_NAVY,
+    corner_radius=6,
+    width=90,
+    height=30,
+    command=alternar_pantalla_completa
+)
+btn_login_fs.pack(side="right", padx=(6, 0))
+
+btn_login_min = ctk.CTkButton(
+    f_login_top_bar,
+    text="🗕 Minimizar",
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color="#E2E8F0",
+    hover_color="#CBD5E1",
+    text_color=COLOR_KOSTAL_NAVY,
+    corner_radius=6,
+    width=95,
+    height=30,
+    command=minimizar_ventana
+)
+btn_login_min.pack(side="right")
 
 card_login = ctk.CTkFrame(
     frame_login, 
@@ -3202,7 +3287,35 @@ btn_logout_top = ctk.CTkButton(
     height=28,
     command=cerrar_sesion
 )
-btn_logout_top.pack(side="left", padx=(4, 10), pady=8)
+btn_logout_top.pack(side="left", padx=(4, 6), pady=8)
+
+btn_min_top = ctk.CTkButton(
+    hdr_right,
+    text="🗕",
+    font=(FONT_MAIN, 12, "bold"),
+    fg_color="#F1F5F9",
+    hover_color="#E2E8F0",
+    text_color=COLOR_KOSTAL_NAVY,
+    corner_radius=6,
+    width=32,
+    height=28,
+    command=minimizar_ventana
+)
+btn_min_top.pack(side="left", padx=(0, 4), pady=8)
+
+btn_fs_top = ctk.CTkButton(
+    hdr_right,
+    text="⛶",
+    font=(FONT_MAIN, 12, "bold"),
+    fg_color="#F1F5F9",
+    hover_color="#E2E8F0",
+    text_color=COLOR_KOSTAL_NAVY,
+    corner_radius=6,
+    width=32,
+    height=28,
+    command=alternar_pantalla_completa
+)
+btn_fs_top.pack(side="left", padx=(0, 10), pady=8)
 
 body_grid = ctk.CTkFrame(frame_operador, fg_color=BG_MAIN, corner_radius=0)
 body_grid.pack(fill="both", expand=True, padx=12, pady=10)
@@ -4146,11 +4259,39 @@ if img_logo_baluarte_panel:
     ctk.CTkLabel(f_adm_hdr_right, image=img_logo_baluarte_panel, text="").pack(side="left", padx=(0, 16))
 
 f_adm_clock = ctk.CTkFrame(f_adm_hdr_right, fg_color="transparent")
-f_adm_clock.pack(side="left")
+f_adm_clock.pack(side="left", padx=(0, 14))
 lbl_adm_time = ctk.CTkLabel(f_adm_clock, text="09:05:17", font=(FONT_MONO, 12, "bold"), text_color=COLOR_KOSTAL_DARK)
 lbl_adm_time.pack(anchor="e")
 lbl_adm_date = ctk.CTkLabel(f_adm_clock, text="24/09/2026", font=(FONT_MONO, 10), text_color=TEXT_MUTED)
 lbl_adm_date.pack(anchor="e")
+
+btn_adm_min = ctk.CTkButton(
+    f_adm_hdr_right,
+    text="🗕 Minimizar",
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color="#F1F5F9",
+    hover_color="#E2E8F0",
+    text_color=COLOR_KOSTAL_NAVY,
+    corner_radius=6,
+    width=90,
+    height=30,
+    command=minimizar_ventana
+)
+btn_adm_min.pack(side="left", padx=(4, 4))
+
+btn_adm_fs = ctk.CTkButton(
+    f_adm_hdr_right,
+    text="⛶ Pantalla",
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color="#F1F5F9",
+    hover_color="#E2E8F0",
+    text_color=COLOR_KOSTAL_NAVY,
+    corner_radius=6,
+    width=85,
+    height=30,
+    command=alternar_pantalla_completa
+)
+btn_adm_fs.pack(side="left", padx=(0, 4))
 
 # CUERPO DEL PANEL ADMIN CON SIDEBAR IZQUIERDA CORPORATIVA KOSTAL
 f_adm_body = ctk.CTkFrame(frame_admin, fg_color="transparent")
@@ -5200,9 +5341,9 @@ ctk.CTkLabel(f_tm_empty, text="No hay registros de tiempo muerto aún.", font=(F
 cambiar_modulo_admin("excel")
 
 # ==============================================================================
-# BARRA DE ESTADO INFERIOR
+# BARRA DE ESTADO INFERIOR (CON CONTROLES PERMANENTES DE VENTANA)
 # ==============================================================================
-status_bar = ctk.CTkFrame(ventana, fg_color=COLOR_KOSTAL_DARK, height=28, corner_radius=0)
+status_bar = ctk.CTkFrame(ventana, fg_color=COLOR_KOSTAL_DARK, height=32, corner_radius=0)
 status_bar.pack(fill="x", side="bottom")
 
 lbl_estado = ctk.CTkLabel(
@@ -5214,12 +5355,40 @@ lbl_estado = ctk.CTkLabel(
 )
 lbl_estado.pack(side="left", padx=16, fill="x", expand=True)
 
+btn_sb_min = ctk.CTkButton(
+    status_bar,
+    text="🗕 Minimizar",
+    font=(FONT_MAIN, 9, "bold"),
+    fg_color="#1E293B",
+    hover_color="#334155",
+    text_color="#E2E8F0",
+    corner_radius=4,
+    width=90,
+    height=24,
+    command=minimizar_ventana
+)
+btn_sb_min.pack(side="right", padx=(4, 14), pady=4)
+
+btn_sb_fs = ctk.CTkButton(
+    status_bar,
+    text="⛶ Pantalla",
+    font=(FONT_MAIN, 9, "bold"),
+    fg_color="#1E293B",
+    hover_color="#334155",
+    text_color="#E2E8F0",
+    corner_radius=4,
+    width=85,
+    height=24,
+    command=alternar_pantalla_completa
+)
+btn_sb_fs.pack(side="right", padx=4, pady=4)
+
 ctk.CTkLabel(
     status_bar,
     text="KOSTAL Group Automotriz © 2026",
     font=(FONT_MAIN, 8),
     text_color="#64748B"
-).pack(side="right", padx=16)
+).pack(side="right", padx=(8, 14))
 
 actualizar_reloj_y_fecha()
 monitoreo_ciclico()
