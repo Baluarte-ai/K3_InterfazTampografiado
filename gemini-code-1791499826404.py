@@ -54,12 +54,15 @@ try:
         if sys.platform.startswith("linux"):
             try:
                 import subprocess
-                # 1. Si onboard está instalado, configurarlo para flotar siempre encima (force-window-on-top)
+                # 1. Si onboard está instalado, configurarlo para flotar siempre encima (force-to-top)
                 subprocess.Popen([
-                    "gsettings", "set", "org.onboard.window", "force-window-on-top", "true"
+                    "gsettings", "set", "org.onboard.window", "force-to-top", "true"
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 subprocess.Popen([
-                    "gsettings", "set", "org.onboard.window", "dock-to-edge", "false"
+                    "gsettings", "set", "org.onboard.window", "docking-enabled", "false"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen([
+                    "onboard"
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 subprocess.Popen([
                     "dbus-send", "--type=method_call",
