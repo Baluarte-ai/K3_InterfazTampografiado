@@ -11,6 +11,57 @@ import pandas as pd
 from opcua import Client, ua
 
 # ==============================================================================
+# PARCHE DE SOPORTE PARA PANTALLAS TÁCTILES (LINUX / TOUCHSCREEN INDUSTRIAL)
+# ==============================================================================
+# En Linux y pantallas táctiles, los toques rápidos disparan <ButtonPress-1> y
+# <ButtonRelease-1> sin generar previamente un evento de movimiento/hover (<Enter>).
+# CustomTkinter por defecto cancela los clics si `self._mouse_inside` es False.
+# Además, un ligero deslizamiento del dedo durante el toque activa <Leave>.
+# Este parche asegura que los toques táctiles siempre se registren correctamente.
+try:
+    _orig_btn_create_bindings = ctk.CTkButton._create_bindings
+    def _patched_btn_create_bindings(self, sequence=None):
+        _orig_btn_create_bindings(self, sequence)
+        def _on_press_touch(e=None):
+            self._mouse_inside = True
+        for w in [self._canvas, self._text_label, self._image_label]:
+            if w is not None:
+                try:
+                    w.bind("<Button-1>", _on_press_touch, add="+")
+                except Exception:
+                    pass
+
+    def _patched_btn_on_release(self, event=None):
+        if self._state not in ("disabled", tk.DISABLED):
+            es_valido = True
+            if event is not None and hasattr(event, "x") and hasattr(event, "y"):
+                w = self.winfo_width()
+                h = self.winfo_height()
+                margen = 40  # Tolerancia en píxeles para el toque del dedo
+                if w > 5 and h > 5:
+                    if not (-margen <= event.x <= w + margen and -margen <= event.y <= h + margen):
+                        es_valido = False
+            if es_valido:
+                self._mouse_inside = False
+                self._click_animation_running = True
+                self.after(100, self._click_animation)
+                if self._command is not None:
+                    self._command()
+
+    ctk.CTkButton._create_bindings = _patched_btn_create_bindings
+    ctk.CTkButton._on_release = _patched_btn_on_release
+
+    # En CTkEntry, permitir enfoque tocando cualquier área del contenedor
+    _orig_entry_init = ctk.CTkEntry.__init__
+    def _patched_entry_init(self, *args, **kwargs):
+        _orig_entry_init(self, *args, **kwargs)
+        if hasattr(self, "_canvas") and self._canvas is not None:
+            self._canvas.bind("<Button-1>", lambda e: self.focus_set(), add="+")
+    ctk.CTkEntry.__init__ = _patched_entry_init
+except Exception as _e_patch:
+    print(f"Aviso: No se pudo aplicar parche táctil: {_e_patch}")
+
+# ==============================================================================
 # CONFIGURACIÓN VISUAL MODERNA HMI KOSTAL (CUSTOMTKINTER INDUSTRIAL)
 # ==============================================================================
 ctk.set_appearance_mode("light")
