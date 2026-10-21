@@ -45,17 +45,42 @@ try:
     ctk.CTkButton._on_release = _patched_btn_on_release
     ctk.CTkButton._draw = _patched_btn_draw
 
+    # Función para solicitar apertura del teclado nativo de Ubuntu GNOME
+    def invocar_teclado_nativo_ubuntu(e=None):
+        if sys.platform.startswith("linux"):
+            try:
+                import subprocess
+                subprocess.Popen([
+                    "gsettings", "set",
+                    "org.gnome.desktop.a11y.applications",
+                    "screen-keyboard-enabled", "true"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen([
+                    "gdbus", "call", "--session",
+                    "--dest", "org.gnome.Shell",
+                    "--object-path", "/org/gnome/Shell",
+                    "--method", "org.gnome.Shell.Eval",
+                    "Main.keyboard.open(null, true);"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+
     # En CTkEntry, asegurar que al tocar en cualquier punto del recuadro reciba foco inmediato
+    # y solicite el despliegue del teclado nativo de Ubuntu
     _orig_entry_init = ctk.CTkEntry.__init__
     def _patched_entry_init(self, *args, **kwargs):
         _orig_entry_init(self, *args, **kwargs)
         def _al_tocar_entry(e=None):
             try:
                 self._entry.focus_set()
+                invocar_teclado_nativo_ubuntu()
             except Exception:
                 pass
         if hasattr(self, "_canvas") and self._canvas is not None:
             self._canvas.bind("<Button-1>", _al_tocar_entry, add="+")
+        if hasattr(self, "_entry") and self._entry is not None:
+            self._entry.bind("<FocusIn>", lambda e: invocar_teclado_nativo_ubuntu(), add="+")
+            self._entry.bind("<Button-1>", lambda e: invocar_teclado_nativo_ubuntu(), add="+")
     ctk.CTkEntry.__init__ = _patched_entry_init
 
     # -------------------------------------------------------------------------
@@ -2873,66 +2898,6 @@ btn_ver_pass.pack(side="left", padx=(6, 0))
 # Enfocar automáticamente el campo de contraseña para permitir escritura inmediata
 ventana.after(300, lambda: entry_pass.focus_force())
 
-# -------------------------------------------------------------------------
-# TECLADO TÁCTIL VIRTUAL INTEGRADO (Despliegue automático para contraseña)
-# -------------------------------------------------------------------------
-f_virtual_kb = ctk.CTkFrame(f_login_inner, fg_color="#F8FAFC", corner_radius=10, border_width=1, border_color="#E2E8F0")
-f_virtual_kb.pack(fill="x", pady=(0, 12))
-
-def _escribir_tecla(k):
-    entry_pass.insert("end", k)
-
-def _borrar_tecla():
-    txt = entry_pass.get()
-    if txt:
-        entry_pass.delete(len(txt) - 1, "end")
-
-def _limpiar_tecla():
-    entry_pass.delete(0, "end")
-
-_filas_kb = [
-    ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "⌫"],
-    ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
-    ["a", "s", "d", "f", "g", "h", "j", "k", "l", "ñ"],
-    ["z", "x", "c", "v", "b", "n", "m", ".", "_", "C"]
-]
-
-for _idx_r, _fila in enumerate(_filas_kb):
-    _f_row = ctk.CTkFrame(f_virtual_kb, fg_color="transparent")
-    _f_row.pack(fill="x", padx=4, pady=2 if _idx_r > 0 else (4, 2))
-    for _key in _fila:
-        if _key == "⌫":
-            _cmd = _borrar_tecla
-            _bg = "#FEE2E2"
-            _hov = "#FECACA"
-            _txt = "#DC2626"
-        elif _key == "C":
-            _cmd = _limpiar_tecla
-            _bg = "#FEF3C7"
-            _hov = "#FDE68A"
-            _txt = "#D97706"
-        else:
-            _cmd = (lambda ch=_key: _escribir_tecla(ch))
-            _bg = "#FFFFFF"
-            _hov = "#E2E8F0"
-            _txt = COLOR_KOSTAL_NAVY
-        
-        _btn = ctk.CTkButton(
-            _f_row,
-            text=_key,
-            font=(FONT_MAIN, 11, "bold"),
-            fg_color=_bg,
-            hover_color=_hov,
-            text_color=_txt,
-            border_width=1,
-            border_color="#CBD5E1",
-            corner_radius=5,
-            height=34,
-            width=28,
-            command=_cmd
-        )
-        _btn.pack(side="left", fill="x", expand=True, padx=2)
-
 btn_iniciar_sesion = ctk.CTkButton(
     f_login_inner,
     text="Iniciar Sesión  ➜",
@@ -2941,10 +2906,10 @@ btn_iniciar_sesion = ctk.CTkButton(
     hover_color=COLOR_KOSTAL_ACCENT,
     text_color="white",
     corner_radius=6,
-    height=44,
+    height=46,
     command=procesar_login_formulario
 )
-btn_iniciar_sesion.pack(fill="x", pady=(0, 6))
+btn_iniciar_sesion.pack(fill="x", pady=(12, 8))
 
 f_foot = ctk.CTkFrame(f_login_inner, fg_color="transparent")
 f_foot.pack(fill="x", pady=(14, 0))
