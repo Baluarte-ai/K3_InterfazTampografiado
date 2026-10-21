@@ -23,36 +23,51 @@ try:
         if self._state not in ("disabled", tk.DISABLED):
             ahora = time.time()
             ultimo = getattr(self, "_ultimo_toque_ts", 0)
-            if ahora - ultimo < 0.15:
+            if ahora - ultimo < 0.20:
                 return
             self._ultimo_toque_ts = ahora
             self._mouse_inside = True
-            self._on_leave()
-            self._click_animation_running = True
-            self.after(100, self._click_animation)
+            try:
+                self._on_enter()
+                self.after(100, self._on_leave)
+            except Exception:
+                pass
             if self._command is not None:
                 self._command()
 
     _orig_btn_draw = ctk.CTkButton._draw
     def _patched_btn_draw(self, no_color_updates=False):
         _orig_btn_draw(self, no_color_updates)
-        if not getattr(self, "_touch_bound", False):
-            self._touch_bound = True
-            for w in [self._canvas, self._text_label, self._image_label]:
-                if w is not None:
-                    try:
-                        w.bind("<Button-1>", lambda e, s=self: s._on_release(e), add="+")
-                    except Exception:
-                        pass
+        for w in [self._canvas, self._text_label, self._image_label]:
+            if w is not None and not getattr(w, "_touch_press_bound", False):
+                w._touch_press_bound = True
+                try:
+                    w.bind("<Button-1>", lambda e, s=self: s._on_release(e), add="+")
+                except Exception:
+                    pass
 
     ctk.CTkButton._on_release = _patched_btn_on_release
     ctk.CTkButton._draw = _patched_btn_draw
 
-    # Función para solicitar apertura del teclado nativo de Ubuntu GNOME
+    # Función para solicitar apertura del teclado nativo asegurando que flote al frente
     def invocar_teclado_nativo_ubuntu(e=None):
         if sys.platform.startswith("linux"):
             try:
                 import subprocess
+                # 1. Si onboard está instalado, configurarlo para flotar siempre encima (force-window-on-top)
+                subprocess.Popen([
+                    "gsettings", "set", "org.onboard.window", "force-window-on-top", "true"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen([
+                    "gsettings", "set", "org.onboard.window", "dock-to-edge", "false"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen([
+                    "dbus-send", "--type=method_call",
+                    "--dest=org.onboard.Onboard",
+                    "/org/onboard/Onboard/Keyboard",
+                    "org.onboard.Onboard.Keyboard.Show"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                # 2. GNOME Shell teclado nativo
                 subprocess.Popen([
                     "gsettings", "set",
                     "org.gnome.desktop.a11y.applications",
@@ -65,6 +80,9 @@ try:
                     "--method", "org.gnome.Shell.Eval",
                     "Main.keyboard.open(null, true);"
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                # 3. Forzar ventana de teclado al frente absoluto con wmctrl
+                subprocess.Popen(["wmctrl", "-r", "Onboard", "-b", "add,above"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen(["wmctrl", "-a", "Onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
 
@@ -2768,10 +2786,8 @@ except Exception:
     except Exception as _e_fs:
         print(f"Aviso al maximizar ventana: {_e_fs}")
 
-# Traer la interfaz al frente de la terminal y asegurar foco
+# Traer la interfaz al frente de la terminal y asegurar foco sin atrapar capas
 ventana.lift()
-ventana.attributes("-topmost", True)
-ventana.after(600, lambda: ventana.attributes("-topmost", False))
 ventana.focus_force()
 
 # Atajos para alternar pantalla completa o salir con teclado
