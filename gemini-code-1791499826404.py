@@ -53,24 +53,22 @@ try:
     ctk.CTkButton._on_release = _patched_btn_on_release
     ctk.CTkButton._draw = _patched_btn_draw
 
-    # Función para solicitar apertura del teclado nativo de Ubuntu GNOME (Foto 3)
+    # Función para solicitar apertura del teclado asegurando que flote al frente
     def invocar_teclado_nativo_ubuntu(e=None):
         if sys.platform.startswith("linux"):
             try:
                 import subprocess
-                # 1. Habilitar el teclado en pantalla nativo (Ubuntu moderno 22.04 / 24.04+)
+                # 1. GNOME Shell teclado nativo
                 subprocess.Popen([
                     "gsettings", "set",
                     "org.gnome.desktop.a11y.interface",
                     "show-on-screen-keyboard", "true"
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                # Esquema para versiones anteriores de Ubuntu
                 subprocess.Popen([
                     "gsettings", "set",
                     "org.gnome.desktop.a11y.applications",
                     "screen-keyboard-enabled", "true"
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                # 2. Desplegar el teclado nativo de GNOME Shell (Foto 3)
                 subprocess.Popen([
                     "gdbus", "call", "--session",
                     "--dest", "org.gnome.Shell",
@@ -78,6 +76,17 @@ try:
                     "--method", "org.gnome.Shell.Eval",
                     "Main.keyboard.open(null, true);"
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+                # 2. XFCE / Onboard: desplegar y forzar al frente absoluto por encima de la interfaz
+                subprocess.Popen(["onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen([
+                    "dbus-send", "--type=method_call",
+                    "--dest", "org.onboard.Onboard",
+                    "/org/onboard/Onboard/Keyboard",
+                    "org.onboard.Onboard.Keyboard.Show"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen(["wmctrl", "-r", "Onboard", "-b", "add,above"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen(["wmctrl", "-a", "Onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
 
