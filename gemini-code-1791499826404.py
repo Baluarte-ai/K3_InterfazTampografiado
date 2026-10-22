@@ -427,8 +427,20 @@ if plc_conectado:
         "PE": cliente.get_node(ruta_io + "PE"),
         "TAMPO": cliente.get_node(ruta_io + "TAMPO"),
         "SENSOR_X": cliente.get_node(ruta_io + "SENSOR_X"),
-        "SENSOR_Y": cliente.get_node(ruta_io + "SENSOR_Y")
+        "SENSOR_Y": cliente.get_node(ruta_io + "SENSOR_Y"),
+        "S_TAMPO": cliente.get_node(ruta_prg + "S_TAMPO")
     }
+    # Respaldo en caso de que S.tampo esté declarado con punto en CODESYS
+    try:
+        nodos["S_TAMPO"] = cliente.get_node(ruta_prg + "S_TAMPO")
+    except Exception:
+        try:
+            nodos["S_TAMPO"] = cliente.get_node(ruta_prg + "S.tampo")
+        except Exception:
+            try:
+                nodos["S_TAMPO"] = cliente.get_node(ruta_io + "S_TAMPO")
+            except Exception:
+                nodos["S_TAMPO"] = nodos.get("TAMPO", MockNode(False))
 else:
     nodos = {
         "INICIO": MockNode(False),
@@ -456,7 +468,8 @@ else:
         "PE": MockNode(False),
         "TAMPO": MockNode(False),
         "SENSOR_X": MockNode(False),
-        "SENSOR_Y": MockNode(False)
+        "SENSOR_Y": MockNode(False),
+        "S_TAMPO": MockNode(False)
     }
 
 # Estados visuales e Internos
@@ -801,13 +814,13 @@ def _restaurar_widgets_tutorial():
     _tutorial_widgets_resaltados = []
 
 def _animar_pulso_tutorial():
-    """Genera un efecto pulsante (brillo ámbar/cian) en los elementos activos del paso."""
+    """Genera un efecto pulsante (brillo ámbar/azul vibrante) en los elementos activos del paso."""
     global _tutorial_anim_id, _tutorial_anim_fase
     if not _tutorial_widgets_resaltados:
         return
     _tutorial_anim_fase = 1 - _tutorial_anim_fase
-    color_pulso = "#F59E0B" if _tutorial_anim_fase == 0 else "#38BDF8"
-    bw = 3 if _tutorial_anim_fase == 0 else 4
+    color_pulso = "#F59E0B" if _tutorial_anim_fase == 0 else "#0284C7"
+    bw = 4 if _tutorial_anim_fase == 0 else 5
     for item in _tutorial_widgets_resaltados:
         try:
             w = item["widget"]
@@ -819,7 +832,7 @@ def _animar_pulso_tutorial():
                 w.configure(button_color=color_pulso)
         except Exception:
             pass
-    _tutorial_anim_id = ventana.after(420, _animar_pulso_tutorial)
+    _tutorial_anim_id = ventana.after(380, _animar_pulso_tutorial)
 
 def _resaltar_elementos_interfaz(widgets):
     """Guarda estilos previos y activa la iluminación con pulso en la lista de widgets."""
@@ -837,7 +850,7 @@ def _resaltar_elementos_interfaz(widgets):
                     except Exception:
                         pass
                 _tutorial_widgets_resaltados.append({"widget": w, "orig": orig})
-                w.configure(border_color="#F59E0B", border_width=3)
+                w.configure(border_color="#F59E0B", border_width=4)
             elif isinstance(w, ctk.CTkOptionMenu):
                 try:
                     orig["button_color"] = w.cget("button_color")
@@ -905,68 +918,70 @@ def resaltar_temporalmente_set0_y_home(segundos=6):
 
 def obtener_info_paso_tutorial(num_paso):
     """Retorna la información y widgets para cada uno de los pasos del tutorial."""
-    global estado_manual
+    global estado_manual, idioma_actual
+    es = (idioma_actual == "ES")
     if num_paso == 1:
         return {
             "num": 1,
-            "badge": "PASO 1 DE 5: SELECCIÓN DE RECETA Y JIG",
-            "titulo": "Seleccionar el Jig y Cargar la Receta",
+            "badge": "PASO 1 DE 5: SELECCIÓN DE RECETA Y JIG" if es else "STEP 1 OF 5: RECIPE & JIG SELECTION",
+            "titulo": "Seleccionar el Jig y Cargar la Receta" if es else "Select Jig and Load Recipe",
             "icono": "📋",
-            "descripcion": "El selector de recetas y la vista previa están ILUMINADOS a la izquierda.\n👉 Elige una receta en el menú para cargar su matriz. Al seleccionarla, avanzarás automáticamente al Paso 2.",
-            "nota": "💡 Tip: En producción normal, al cambiar de Jig solo se requerirá 'Set 0' e 'Ir a home'.",
-            "widgets": [globals().get("f_sel_rec"), globals().get("f_pieza_preview")]
+            "descripcion": "El selector de recetas y la vista previa están ILUMINADOS a la izquierda.\n👉 Elige una receta en el menú para cargar su matriz. Al seleccionarla, avanzarás automáticamente al Paso 2." if es else "The recipe dropdown and preview are HIGHLIGHTED on the left.\n👉 Select a recipe from the menu to load its matrix.",
+            "nota": "💡 Tip: En producción normal, al cambiar de Jig solo se requerirá 'Set 0' e 'Ir a home'." if es else "💡 Tip: In normal production, changing Jig only requires 'Set 0' and 'Home'.",
+            "widgets": [globals().get("option_receta"), globals().get("f_pieza_preview")]
         }
     elif num_paso == 2:
         if not estado_manual:
             return {
                 "num": 2,
-                "badge": "PASO 2 DE 5: ACTIVAR MODO MANUAL Y FIJAR SET 0",
-                "titulo": "Paso Previo: Cambiar la Estación a MODO MANUAL",
+                "badge": "PASO 2 DE 5: ACTIVAR MODO MANUAL Y FIJAR SET 0" if es else "STEP 2 OF 5: ENABLE MANUAL MODE & SET 0",
+                "titulo": "Paso Previo: Cambiar la Estación a MODO MANUAL" if es else "Pre-requisite: Switch Station to MANUAL MODE",
                 "icono": "⚙",
-                "descripcion": "⚠️ La estación está en MODO AUTO. Antes de mover la cruceta o fijar el cero, debes cambiar a MODO MANUAL.\n👉 Presiona el botón ILUMINADO '⚙ MODO: AUTO' para activar el control manual del cabezal.",
-                "nota": "💡 Recuerda: La cruceta JOG y el desplazamiento de ejes solo responden cuando el modo MANUAL está activo.",
+                "descripcion": "⚠️ La estación está en MODO AUTO. Antes de mover la cruceta o fijar el cero, debes cambiar a MODO MANUAL.\n👉 Presiona el botón ILUMINADO '⚙ MODO: AUTO' para activar el control manual del cabezal." if es else "⚠️ Station is in AUTO MODE. Before moving Jog or setting zero, switch to MANUAL.\n👉 Tap HIGHLIGHTED '⚙ MODE: AUTO' to switch to manual control.",
+                "nota": "💡 Recuerda: La cruceta JOG y el desplazamiento de ejes solo responden cuando el modo MANUAL está activo." if es else "💡 Reminder: JOG pad and axis motions only respond in MANUAL mode.",
                 "widgets": [globals().get("btn_manual")]
             }
         else:
             return {
                 "num": 2,
-                "badge": "PASO 2 DE 5: CALIBRACIÓN DEL PUNTO CERO",
-                "titulo": "Centrar Cabezal y Guardar Punto Cero (Set 0)",
+                "badge": "PASO 2 DE 5: CALIBRACIÓN DEL PUNTO CERO" if es else "STEP 2 OF 5: ZERO POINT CALIBRATION",
+                "titulo": "Centrar Cabezal y Guardar Punto Cero (Set 0)" if es else "Center Head & Save Zero Point (Set 0)",
                 "icono": "↩",
-                "descripcion": "✓ ¡MODO MANUAL ACTIVO! Usa las flechas de la cruceta JOG para centrar el cabezal sobre la Pieza 01.\n👉 Presiona el botón ILUMINADO '↩ Set 0' para registrar el origen de pintado. El sistema avanzará automáticamente.",
-                "nota": "💡 Tip: Este punto cero se mantendrá guardado entre ciclos para toda esta receta.",
-                "widgets": [globals().get("btn_set_cero"), globals().get("f_pad"), globals().get("f_cero_readonly")]
+                "descripcion": "✓ ¡MODO MANUAL ACTIVO! Usa las flechas de la cruceta JOG para centrar el cabezal sobre la Pieza 01.\n👉 Presiona el botón ILUMINADO '↩ Set 0' para registrar el origen de pintado. El sistema avanzará automáticamente." if es else "✓ MANUAL MODE ACTIVE! Use JOG arrows to center head over Part 01.\n👉 Tap HIGHLIGHTED '↩ Set 0' to register print origin.",
+                "nota": "💡 Tip: Este punto cero se mantendrá guardado entre ciclos para toda esta receta." if es else "💡 Tip: This zero point remains saved across cycles for this recipe.",
+                "widgets": [globals().get("btn_set_cero"), globals().get("btn_y_mas"), globals().get("btn_y_menos"), globals().get("btn_x_mas"), globals().get("btn_x_menos")]
             }
     elif num_paso == 3:
         return {
             "num": 3,
-            "badge": "PASO 3 DE 5: REFERENCIA DE SEGURIDAD",
-            "titulo": "Referenciar la Máquina (Ir a Home)",
+            "badge": "PASO 3 DE 5: REFERENCIA DE SEGURIDAD" if es else "STEP 3 OF 5: SAFETY REFERENCE",
+            "titulo": "Referenciar la Máquina (Ir a Home)" if es else "Reference Machine (Go to Home)",
             "icono": "🏠",
-            "descripcion": "El botón '🏠 Ir a home' está ILUMINADO en los controles de referencia a la derecha.\n👉 Presiona este botón para enviar el cabezal al origen seguro de reposo. El sistema avanzará automáticamente al Paso 4.",
-            "nota": "💡 Tip: Ambos orígenes (Set 0 y Home) protegen el herramental contra colisiones antes de pintar.",
-            "widgets": [globals().get("btn_ir_home"), globals().get("btn_set_home")]
+            "descripcion": "El botón '🏠 Home' está ILUMINADO en los controles de referencia a la derecha.\n👉 Presiona este botón para enviar el cabezal al origen seguro de reposo. El sistema avanzará automáticamente al Paso 4." if es else "The '🏠 Home' button is HIGHLIGHTED in reference controls.\n👉 Tap this button to send the head to safe rest position.",
+            "nota": "💡 Tip: Ambos orígenes (Set 0 y Home) protegen el herramental contra colisiones antes de pintar." if es else "💡 Tip: Both origins (Set 0 & Home) protect tooling against collisions.",
+            "widgets": [globals().get("btn_ir_home")]
         }
     elif num_paso == 4:
         return {
             "num": 4,
-            "badge": "PASO 4 DE 5: CICLO AUTOMÁTICO Y GATILLO",
-            "titulo": "Iniciar Pintado y Disparo por Sensor Y",
+            "badge": "PASO 4 DE 5: CICLO AUTOMÁTICO Y GATILLO" if es else "STEP 4 OF 5: AUTOMATIC CYCLE & TRIGGER",
+            "titulo": "Iniciar Pintado y Disparo por Sensor Y" if es else "Start Printing & Sensor Y Trigger",
             "icono": "🎨",
-            "descripcion": "El botón circular '🎨 INICIO DE PINTADO' y el 'Gatillo Sensor Y' están ILUMINADOS.\n👉 Presiona el botón de pintado. El cabezal viajará al Set 0 y avanzará automáticamente con cada disparo del tampógrafo.",
-            "nota": "💡 Tip: En simulación puedes pulsar 'Disparar Gatillo (Sensor Y)' para avanzar las piezas.",
-            "widgets": [globals().get("btn_pintar"), globals().get("btn_sim_trigger")]
+            "descripcion": "El botón '🎨 INICIO DE PINTADO' está ILUMINADO a la izquierda.\n👉 Presiona el botón para armar el ciclo automático de pintado." if es else "The '🎨 START PRINTING' button is HIGHLIGHTED on the left.\n👉 Tap the button to arm the automatic printing cycle.",
+            "nota": "💡 Tip: En producción el tampógrafo avanzará las piezas al recibir el pulso del sensor." if es else "💡 Tip: In production the pad printer advances parts upon sensor pulse.",
+            "widgets": [globals().get("btn_pintar")]
         }
     elif num_paso == 5:
         return {
             "num": 5,
-            "badge": "PASO 5 DE 5: FIN DE CICLO, RESET Y PARO",
-            "titulo": "Fin de Ciclo Automático, Reset y Emergencias",
+            "badge": "PASO 5 DE 5: FIN DE CICLO, RESET Y PARO" if es else "STEP 5 OF 5: CYCLE END, RESET & E-STOP",
+            "titulo": "Fin de Ciclo Automático, Reset y Emergencias" if es else "Auto Cycle End, Reset & Emergency Controls",
             "icono": "🏁",
-            "descripcion": "Los botones 'RESET', 'PARO' y el panel de control están ILUMINADOS.\n👉 Al terminar la matriz se reinicia automáticamente sin perder el Set 0. Presiona '↻ RESET' o '✅ Finalizar Inducción'.",
-            "nota": "💡 ¡Excelente! Has completado el recorrido guiado por toda la interfaz.",
-            "widgets": [globals().get("btn_reset"), globals().get("btn_stop"), globals().get("card_mandos_der")]
+            "descripcion": "Los botones 'RESET' y 'PARO' están ILUMINADOS a la derecha.\n👉 Al terminar la matriz se reinicia automáticamente sin perder el Set 0. Presiona '↻ RESET' o '✅ Finalizar Inducción'." if es else "The 'RESET' and 'E-STOP' buttons are HIGHLIGHTED.\n👉 Tap '↻ RESET' or '✅ Finish Induction'.",
+            "nota": "💡 ¡Excelente! Has completado el recorrido guiado por toda la interfaz." if es else "💡 Excellent! You have completed the guided interface walkthrough.",
+            "widgets": [globals().get("btn_reset"), globals().get("btn_stop")]
         }
+    return {}
     return {}
 
 def iniciar_tutorial_interactivo(obligatorio=False, usuario_obj=None):
@@ -1555,6 +1570,244 @@ def activar_nueva_posicion(duracion_ms=500):
     ventana.after(duracion_ms, _apagar_senales)
     if activado_ok:
         lbl_estado.configure(text=f"✓ Señal NUEVA_POS activada ({duracion_ms}ms) en PLC", text_color=COLOR_OK)
+
+# ==============================================================================
+# ACTIVACIÓN MANUAL DE TAMPOGRAFÍA (MARCA S.tampo / S_TAMPO EN PLC)
+# ==============================================================================
+def activar_tampo_manual():
+    """Activa la marca S.tampo en el PLC WAGO. Solo permitido en Modo Manual."""
+    if not estado_manual:
+        lbl_estado.configure(
+            text="⚠️ 'Activar Tampo' solo está disponible en MODO MANUAL.",
+            text_color=COLOR_WARN
+        )
+        messagebox.showwarning(
+            "Modo Inválido" if idioma_actual == "ES" else "Invalid Mode",
+            "La activación manual de Tampo solo está permitida en MODO MANUAL.\nCambie primero el selector a MODO: MANUAL."
+            if idioma_actual == "ES" else
+            "Manual Tampo triggering is only allowed in MANUAL MODE.\nPlease switch the mode selector to MANUAL first."
+        )
+        return
+    
+    # Enviar pulso a la marca S.tampo / S_TAMPO y TAMPO
+    pulso_ok = False
+    for tag in ["S_TAMPO", "TAMPO"]:
+        if tag in nodos:
+            try:
+                enviar_pulso(tag, duracion_ms=500)
+                pulso_ok = True
+            except Exception:
+                pass
+    if pulso_ok:
+        lbl_estado.configure(
+            text="✓ Pulso emitido a marca S.tampo del PLC (Modo Manual)" if idioma_actual == "ES" else "✓ Pulse sent to PLC S.tampo marker (Manual Mode)",
+            text_color=COLOR_OK
+        )
+
+# ==============================================================================
+# GESTIÓN Y CAMBIO DE IDIOMA DINÁMICO (ESPAÑOL <-> INGLÉS)
+# ==============================================================================
+idioma_actual = "ES"
+
+DICCIONARIO_IDIOMAS = {
+    "ES": {
+        "titulo_proceso": "INFORMACIÓN DE PROCESO",
+        "receta_label": "Receta / Jig Activo:",
+        "pieza": "Pieza:",
+        "modelo": "Modelo:",
+        "matriz_fixture": "Matriz Fixture:",
+        "dist_cc": "Dist. C-C:",
+        "fin_hora": "⏱️  Registrar Fin de Hora",
+        "ctrl_pintado": "CONTROL PRINCIPAL DE PINTADO",
+        "btn_pintar_off": "🎨\nINICIO DE\nPINTADO\n[OFF]",
+        "btn_pintar_on": "🎨\nPINTANDO\nACTIVO\n[ON]",
+        "lbl_pintar_sub": "Toque para alternar ciclo automático",
+        "estado_fixture": "ESTADO DEL FIXTURE",
+        "recetario_admin": "🛠️ Recetario Admin",
+        "coords": "Coords",
+        "probar_mov": "⚡ Probar Movimiento",
+        "diag_plc": "DIAGNÓSTICO & SEÑALES DEL PLC WAGO",
+        "op_jog": "OPERACIÓN & JOG",
+        "plegar": "▲ Plegar",
+        "desplegar": "▼ Desplegar",
+        "operacion": "⚡ OPERACIÓN",
+        "modo_auto": "⚙ MODO: AUTO",
+        "modo_manual": "⚙ MODO: MANUAL",
+        "velocidad": "Velocidad:",
+        "jog_manual": "🕹️ JOG MANUAL",
+        "paso_jog": "Paso JOG:",
+        "coord_box": "COORD (0-200)",
+        "cero_registrado": "🔒 CERO REGISTRADO:",
+        "origen": "ORIGEN",
+        "home": "🏠 Home",
+        "set_home": "⚙ Set Home",
+        "set_0": "↩ Set 0",
+        "activar_tampo": "🏷️ Activar Tampo",
+        "mandos_control": "MANDOS DE CONTROL",
+        "inicio": "▶  INICIO",
+        "reset": "↻  RESET",
+        "paro": "🛑  PARO",
+        "cerrar_sesion": "⏻ Cerrar Sesión",
+        "tutorial": "📖 Tutorial",
+        "pantalla": "⛶ Pantalla",
+        "minimizar": "🗕 Minimizar",
+        "usuario": "Usuario / Perfil",
+        "contrasena": "Contraseña",
+        "iniciar_sesion": "Iniciar Sesión  ➜",
+        "sistema_hmi": "SISTEMA HMI DE INSPECCIÓN",
+        "linea_ensamblado": "Línea de Ensamblado & Calidad KOSTAL",
+        "msg_init": "Sistema HMI inicializado correctamente. Esperando autenticación...",
+        "status_listo": "ESTADO: LISTO",
+        "status_esperando": "ESPERANDO PINTADO...",
+        "status_energ": "ENERGIZADOS",
+        "status_origenes": "ORÍGENES LISTOS"
+    },
+    "EN": {
+        "titulo_proceso": "PROCESS INFORMATION",
+        "receta_label": "Active Recipe / Jig:",
+        "pieza": "Part:",
+        "modelo": "Model:",
+        "matriz_fixture": "Fixture Matrix:",
+        "dist_cc": "Center Dist:",
+        "fin_hora": "⏱️  Register Hourly Output",
+        "ctrl_pintado": "MAIN PRINTING CONTROL",
+        "btn_pintar_off": "🎨\nSTART\nPRINTING\n[OFF]",
+        "btn_pintar_on": "🎨\nPRINTING\nACTIVE\n[ON]",
+        "lbl_pintar_sub": "Tap to toggle automatic cycle",
+        "estado_fixture": "FIXTURE STATUS",
+        "recetario_admin": "🛠️ Admin Recipes",
+        "coords": "Coords",
+        "probar_mov": "⚡ Test Motion",
+        "diag_plc": "PLC DIAGNOSTICS & SIGNALS",
+        "op_jog": "OPERATION & JOG",
+        "plegar": "▲ Fold",
+        "desplegar": "▼ Expand",
+        "operacion": "⚡ OPERATION",
+        "modo_auto": "⚙ MODE: AUTO",
+        "modo_manual": "⚙ MODE: MANUAL",
+        "velocidad": "Speed:",
+        "jog_manual": "🕹️ MANUAL JOG",
+        "paso_jog": "JOG Step:",
+        "coord_box": "COORD (0-200)",
+        "cero_registrado": "🔒 SAVED ZERO:",
+        "origen": "ORIGIN",
+        "home": "🏠 Home",
+        "set_home": "⚙ Set Home",
+        "set_0": "↩ Set 0",
+        "activar_tampo": "🏷️ Trigger Pad",
+        "mandos_control": "CONTROL COMMANDS",
+        "inicio": "▶  START",
+        "reset": "↻  RESET",
+        "paro": "🛑  E-STOP",
+        "cerrar_sesion": "⏻ Log Out",
+        "tutorial": "📖 Tutorial",
+        "pantalla": "⛶ Fullscreen",
+        "minimizar": "🗕 Minimize",
+        "usuario": "User / Profile",
+        "contrasena": "Password",
+        "iniciar_sesion": "Sign In  ➜",
+        "sistema_hmi": "HMI INSPECTION SYSTEM",
+        "linea_ensamblado": "KOSTAL Assembly & Quality Line",
+        "msg_init": "HMI System initialized successfully. Waiting for authentication...",
+        "status_listo": "STATUS: READY",
+        "status_esperando": "WAITING FOR PRINT...",
+        "status_energ": "ENERGIZED",
+        "status_origenes": "ORIGINS READY"
+    }
+}
+
+def cambiar_idioma(nuevo_idioma):
+    global idioma_actual
+    if nuevo_idioma not in DICCIONARIO_IDIOMAS:
+        return
+    idioma_actual = nuevo_idioma
+    dic = DICCIONARIO_IDIOMAS[nuevo_idioma]
+
+    # Actualizar estado visual de los botones de idioma
+    if 'btn_lang_es' in globals() and 'btn_lang_en' in globals():
+        if nuevo_idioma == "ES":
+            btn_lang_es.configure(fg_color=COLOR_KOSTAL_NAVY, text_color="white")
+            btn_lang_en.configure(fg_color="transparent", text_color=TEXT_MUTED)
+        else:
+            btn_lang_en.configure(fg_color=COLOR_KOSTAL_NAVY, text_color="white")
+            btn_lang_es.configure(fg_color="transparent", text_color=TEXT_MUTED)
+
+    if 'btn_adm_lang_es' in globals() and 'btn_adm_lang_en' in globals():
+        if nuevo_idioma == "ES":
+            btn_adm_lang_es.configure(fg_color="#004F9F", text_color="white")
+            btn_adm_lang_en.configure(fg_color="transparent", text_color="#94A3B8")
+        else:
+            btn_adm_lang_en.configure(fg_color="#004F9F", text_color="white")
+            btn_adm_lang_es.configure(fg_color="transparent", text_color="#94A3B8")
+
+    # Títulos de Tarjetas
+    if 'card_proc' in globals() and hasattr(card_proc, '_header_title'):
+        card_proc._header_title.configure(text=dic["titulo_proceso"])
+    if 'lbl_rec_title' in globals():
+        lbl_rec_title.configure(text=dic["receta_label"])
+    if 'card_marcha' in globals() and hasattr(card_marcha, '_header_title'):
+        card_marcha._header_title.configure(text=dic["ctrl_pintado"])
+    if 'card_fixture' in globals() and hasattr(card_fixture, '_header_title'):
+        card_fixture._header_title.configure(text=f"{dic['estado_fixture']} ({matriz_filas} × {matriz_cols})")
+    if 'card_diag' in globals() and hasattr(card_diag, '_header_title'):
+        card_diag._header_title.configure(text=dic["diag_plc"])
+    if 'card_jog' in globals() and hasattr(card_jog, '_header_title'):
+        card_jog._header_title.configure(text=dic["op_jog"])
+    if 'card_mandos_der' in globals() and hasattr(card_mandos_der, '_header_title'):
+        card_mandos_der._header_title.configure(text=dic["mandos_control"])
+
+    # Botones principales
+    if 'btn_manual' in globals():
+        btn_manual.configure(text=dic["modo_manual"] if estado_manual else dic["modo_auto"])
+    if 'btn_pintar' in globals():
+        btn_pintar.configure(text=dic["btn_pintar_on"] if estado_pintar else dic["btn_pintar_off"])
+    if 'lbl_pintar_sub' in globals():
+        lbl_pintar_sub.configure(text=dic["lbl_pintar_sub"])
+    if 'btn_inicio' in globals():
+        btn_inicio.configure(text=dic["inicio"])
+    if 'btn_reset' in globals():
+        btn_reset.configure(text=dic["reset"])
+    if 'btn_stop' in globals():
+        btn_stop.configure(text=dic["paro"])
+    if 'btn_fin_de_hora' in globals():
+        btn_fin_de_hora.configure(text=dic["fin_hora"])
+    if 'btn_ir_home' in globals():
+        btn_ir_home.configure(text=dic["home"])
+    if 'btn_set_home' in globals():
+        btn_set_home.configure(text=dic["set_home"])
+    if 'btn_set_cero' in globals():
+        btn_set_cero.configure(text=dic["set_0"])
+    if 'btn_activar_tampo' in globals():
+        btn_activar_tampo.configure(text=dic["activar_tampo"])
+    if 'btn_logout_top' in globals():
+        btn_logout_top.configure(text=dic["cerrar_sesion"])
+    if 'btn_tutorial' in globals():
+        btn_tutorial.configure(text=dic["tutorial"])
+
+    # Botones de ventana
+    for b in ['btn_login_fs', 'btn_sb_fs', 'btn_fs_top']:
+        if b in globals():
+            globals()[b].configure(text=dic["pantalla"])
+    for b in ['btn_login_min', 'btn_sb_min', 'btn_min_top']:
+        if b in globals():
+            globals()[b].configure(text=dic["minimizar"])
+
+    # Login
+    if 'lbl_login_user' in globals():
+        lbl_login_user.configure(text=dic["usuario"])
+    if 'lbl_login_pass' in globals():
+        lbl_login_pass.configure(text=dic["contrasena"])
+    if 'btn_iniciar_sesion' in globals():
+        btn_iniciar_sesion.configure(text=dic["iniciar_sesion"])
+    if 'lbl_login_sys' in globals():
+        lbl_login_sys.configure(text=dic["sistema_hmi"])
+    if 'lbl_login_sub' in globals():
+        lbl_login_sub.configure(text=dic["linea_ensamblado"])
+
+    lbl_estado.configure(
+        text=f"Idioma cambiado a {'Español' if nuevo_idioma == 'ES' else 'English'}.",
+        text_color=COLOR_OK
+    )
 
 def ejecutar_home_general():
     global maquina_en_home
@@ -2818,8 +3071,8 @@ def actualizar_temporizador_sesion():
 # ==============================================================================
 ventana = ctk.CTk()
 ventana.title("KOSTAL Industrial HMI - Estación de Inserción y Pintado SMC")
-ventana.geometry("1366x768")
-ventana.minsize(1100, 720)
+ventana.geometry("1920x1080")
+ventana.minsize(1280, 720)
 ventana.configure(fg_color=BG_MAIN)
 try:
     ventana.config(cursor="none")
@@ -2827,19 +3080,17 @@ except Exception:
     pass
 ventana.protocol("WM_DELETE_WINDOW", cerrar_aplicacion)
 
-# Modo Maximizado para pantalla completa
+# Modo Pantalla Completa nativa (Resolución objetivo 1920x1080)
 try:
-    if sys.platform.startswith("linux"):
-        ventana.attributes("-zoomed", True)
-    else:
-        ventana.state("zoomed")
+    ventana.attributes("-fullscreen", True)
 except Exception:
     try:
-        sw = ventana.winfo_screenwidth()
-        sh = ventana.winfo_screenheight()
-        ventana.geometry(f"{sw}x{sh}+0+0")
-    except Exception as _e_fs:
-        print(f"Aviso al maximizar ventana: {_e_fs}")
+        if sys.platform.startswith("linux"):
+            ventana.attributes("-zoomed", True)
+        else:
+            ventana.state("zoomed")
+    except Exception:
+        pass
 
 # Traer la interfaz al frente de la terminal y asegurar foco sin atrapar capas
 ventana.lift()
@@ -2900,36 +3151,40 @@ btn_login_min.pack(side="right")
 card_login = ctk.CTkFrame(
     frame_login, 
     fg_color=BG_CARD, 
-    corner_radius=12, 
+    corner_radius=16, 
     border_width=1, 
     border_color=BORDER_CARD,
-    width=550
+    width=680
 )
 card_login.place(relx=0.5, rely=0.5, anchor="center")
 
 f_login_inner = ctk.CTkFrame(card_login, fg_color="transparent")
-f_login_inner.pack(padx=28, pady=22, fill="both")
+f_login_inner.pack(padx=42, pady=32, fill="both")
 
 if img_logo_kostal_login:
     ctk.CTkLabel(f_login_inner, image=img_logo_kostal_login, text="").pack(pady=(0, 6))
 else:
-    ctk.CTkLabel(f_login_inner, text="KOSTAL", font=(FONT_MAIN, 26, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(pady=(0, 4))
+    ctk.CTkLabel(f_login_inner, text="KOSTAL", font=(FONT_MAIN, 28, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(pady=(0, 4))
 
-ctk.CTkLabel(
+lbl_login_sys = ctk.CTkLabel(
     f_login_inner, 
     text="SISTEMA HMI DE INSPECCIÓN", 
-    font=(FONT_MAIN, 17, "bold"), 
+    font=(FONT_MAIN, 20, "bold"), 
     text_color=COLOR_KOSTAL_NAVY
-).pack(pady=(0, 2))
+)
+lbl_login_sys.pack(pady=(0, 2))
 
-ctk.CTkLabel(
+lbl_login_sub = ctk.CTkLabel(
     f_login_inner, 
     text="Línea de Ensamblado & Calidad KOSTAL", 
-    font=(FONT_MAIN, 12), 
+    font=(FONT_MAIN, 13), 
     text_color=TEXT_SECONDARY
-).pack(pady=(0, 14))
+)
+lbl_login_sub.pack(pady=(0, 16))
 
-ctk.CTkLabel(f_login_inner, text="Usuario", font=(FONT_MAIN, 12, "bold"), text_color=TEXT_PRIMARY, anchor="w").pack(fill="x", pady=(2, 2))
+lbl_login_user = ctk.CTkLabel(f_login_inner, text="Usuario / Perfil", font=(FONT_MAIN, 14, "bold"), text_color=TEXT_PRIMARY, anchor="w")
+lbl_login_user.pack(fill="x", pady=(2, 4))
+
 option_usuario = ctk.CTkOptionMenu(
     f_login_inner,
     values=[f"{u['nombre']} ({u['rol']})" for u in USUARIOS_SISTEMA],
@@ -2939,17 +3194,19 @@ option_usuario = ctk.CTkOptionMenu(
     text_color=TEXT_PRIMARY,
     dropdown_fg_color=BG_CARD,
     dropdown_text_color=TEXT_PRIMARY,
-    corner_radius=6,
-    height=38,
-    font=(FONT_MAIN, 12)
+    corner_radius=8,
+    height=52,
+    font=(FONT_MAIN, 15, "bold"),
+    dropdown_font=(FONT_MAIN, 14)
 )
 option_usuario.set(f"{USUARIOS_SISTEMA[0]['nombre']} ({USUARIOS_SISTEMA[0]['rol']})")
-option_usuario.pack(fill="x", pady=(0, 10))
+option_usuario.pack(fill="x", pady=(0, 14))
 
-ctk.CTkLabel(f_login_inner, text="Contraseña", font=(FONT_MAIN, 12, "bold"), text_color=TEXT_PRIMARY, anchor="w").pack(fill="x", pady=(2, 2))
+lbl_login_pass = ctk.CTkLabel(f_login_inner, text="Contraseña", font=(FONT_MAIN, 14, "bold"), text_color=TEXT_PRIMARY, anchor="w")
+lbl_login_pass.pack(fill="x", pady=(2, 4))
 
 f_pass_row = ctk.CTkFrame(f_login_inner, fg_color="transparent")
-f_pass_row.pack(fill="x", pady=(0, 10))
+f_pass_row.pack(fill="x", pady=(0, 14))
 
 entry_pass = ctk.CTkEntry(
     f_pass_row,
@@ -2958,9 +3215,9 @@ entry_pass = ctk.CTkEntry(
     border_color=BORDER_CARD,
     border_width=1,
     text_color=TEXT_PRIMARY,
-    corner_radius=6,
-    height=40,
-    font=(FONT_MAIN, 14),
+    corner_radius=8,
+    height=52,
+    font=(FONT_MAIN, 16),
     placeholder_text="Ingrese su contraseña"
 )
 entry_pass.pack(side="left", fill="x", expand=True)
@@ -2968,18 +3225,18 @@ entry_pass.pack(side="left", fill="x", expand=True)
 btn_ver_pass = ctk.CTkButton(
     f_pass_row,
     text="👁",
-    width=40,
-    height=40,
-    font=(FONT_MAIN, 14),
+    width=52,
+    height=52,
+    font=(FONT_MAIN, 18),
     fg_color=BG_INPUT,
     hover_color=BORDER_LIGHT,
     text_color=TEXT_PRIMARY,
     border_width=1,
     border_color=BORDER_CARD,
-    corner_radius=6,
+    corner_radius=8,
     command=alternar_ver_contrasena
 )
-btn_ver_pass.pack(side="left", padx=(6, 0))
+btn_ver_pass.pack(side="left", padx=(8, 0))
 
 # Enfocar automáticamente el campo de contraseña para permitir escritura inmediata
 ventana.after(300, lambda: entry_pass.focus_force())
@@ -2987,15 +3244,15 @@ ventana.after(300, lambda: entry_pass.focus_force())
 btn_iniciar_sesion = ctk.CTkButton(
     f_login_inner,
     text="Iniciar Sesión  ➜",
-    font=(FONT_MAIN, 14, "bold"),
+    font=(FONT_MAIN, 16, "bold"),
     fg_color=COLOR_KOSTAL_NAVY,
     hover_color=COLOR_KOSTAL_ACCENT,
     text_color="white",
-    corner_radius=6,
-    height=46,
+    corner_radius=8,
+    height=56,
     command=procesar_login_formulario
 )
-btn_iniciar_sesion.pack(fill="x", pady=(12, 8))
+btn_iniciar_sesion.pack(fill="x", pady=(14, 10))
 
 f_foot = ctk.CTkFrame(f_login_inner, fg_color="transparent")
 f_foot.pack(fill="x", pady=(14, 0))
@@ -3396,12 +3653,36 @@ lbl_hdr_role_badge = ctk.CTkLabel(
 )
 lbl_hdr_role_badge.pack(anchor="w", pady=(1, 0))
 
-# Selector de idioma ES / EN
-f_lang_pill = ctk.CTkFrame(hdr_right, fg_color=BG_INPUT, corner_radius=4, border_width=1, border_color=BORDER_LIGHT)
+# Selector de idioma interactivo ES / EN
+f_lang_pill = ctk.CTkFrame(hdr_right, fg_color=BG_INPUT, corner_radius=6, border_width=1, border_color=BORDER_LIGHT)
 f_lang_pill.pack(side="left", padx=6, pady=8)
-ctk.CTkLabel(f_lang_pill, text="ES", font=(FONT_MAIN, 9, "bold"), text_color=COLOR_KOSTAL_NAVY, padx=4).pack(side="left")
-ctk.CTkLabel(f_lang_pill, text="|", font=(FONT_MAIN, 9), text_color=BORDER_LIGHT).pack(side="left")
-ctk.CTkLabel(f_lang_pill, text="EN", font=(FONT_MAIN, 9), text_color=TEXT_MUTED, padx=4).pack(side="left")
+
+btn_lang_es = ctk.CTkButton(
+    f_lang_pill,
+    text="ES",
+    width=32,
+    height=24,
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color=COLOR_KOSTAL_NAVY,
+    text_color="white",
+    corner_radius=4,
+    command=lambda: cambiar_idioma("ES")
+)
+btn_lang_es.pack(side="left", padx=2, pady=2)
+
+btn_lang_en = ctk.CTkButton(
+    f_lang_pill,
+    text="EN",
+    width=32,
+    height=24,
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color="transparent",
+    hover_color="#E2E8F0",
+    text_color=TEXT_MUTED,
+    corner_radius=4,
+    command=lambda: cambiar_idioma("EN")
+)
+btn_lang_en.pack(side="left", padx=2, pady=2)
 
 lbl_hdr_session_timer = ctk.CTkLabel(hdr_right, text="00:00:00", font=(FONT_MONO, 10, "bold"), text_color=TEXT_MUTED)
 
@@ -3496,10 +3777,12 @@ def fila_info(parent, label, val, c_val=TEXT_PRIMARY, mono=False):
     lbl_v.pack(side="right")
     return lbl_v
 
-# Selector de recetas definidas en Admin
+# Selector de recetas definidas en Admin (Agrandado para uso táctil cómodo)
 f_sel_rec = ctk.CTkFrame(f_proc_b, fg_color="transparent")
-f_sel_rec.pack(fill="x", pady=(0, 4))
-ctk.CTkLabel(f_sel_rec, text="Receta:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_PRIMARY).pack(side="left")
+f_sel_rec.pack(fill="x", pady=(2, 6))
+
+lbl_rec_title = ctk.CTkLabel(f_sel_rec, text="Receta / Jig Activo:", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_KOSTAL_NAVY)
+lbl_rec_title.pack(anchor="w", pady=(0, 3))
 
 lista_nom_recetas = [r.get("nombre", "") for r in config_actual.get("recetas", [])] or ["Receta Base"]
 receta_activa_nom = config_actual.get("receta_activa", lista_nom_recetas[0])
@@ -3515,13 +3798,13 @@ option_receta = ctk.CTkOptionMenu(
     text_color="#1E3A8A",
     dropdown_fg_color="#FFFFFF",
     dropdown_text_color="#1E293B",
-    corner_radius=6,
-    height=28,
-    font=(FONT_MAIN, 10, "bold"),
-    width=155
+    corner_radius=8,
+    height=44,
+    font=(FONT_MAIN, 13, "bold"),
+    dropdown_font=(FONT_MAIN, 13)
 )
 option_receta.set(receta_activa_nom)
-option_receta.pack(side="right")
+option_receta.pack(fill="x")
 
 # Card de Detalles de la Pieza e Imagen de Referencia
 f_pieza_preview = ctk.CTkFrame(f_proc_b, fg_color="#F8FAFC", corner_radius=8, border_width=1, border_color="#E2E8F0")
@@ -3605,34 +3888,29 @@ card_marcha = crear_card_moderna(col_1, "Control Principal de Pintado")
 card_marcha.pack(fill="both", expand=True, pady=(6, 0))
 
 f_marcha_b = ctk.CTkFrame(card_marcha, fg_color="transparent")
-f_marcha_b.pack(fill="both", expand=True, padx=14, pady=10)
-
-f_pintar_center = ctk.CTkFrame(f_marcha_b, fg_color="transparent")
-f_pintar_center.pack(expand=True, fill="both")
+f_marcha_b.pack(fill="both", expand=True, padx=10, pady=8)
 
 btn_pintar = ctk.CTkButton(
-    f_pintar_center,
+    f_marcha_b,
     text="🎨\nINICIO DE\nPINTADO\n[OFF]",
-    font=(FONT_MAIN, 15, "bold"),
+    font=(FONT_MAIN, 22, "bold"),
     fg_color=COLOR_KOSTAL_NAVY,
     hover_color=COLOR_KOSTAL_ACCENT,
     text_color="white",
-    corner_radius=22,
-    width=170,
-    height=125,
+    corner_radius=18,
     border_width=3,
     border_color="#CBD5E1",
     command=alternar_pintar
 )
-btn_pintar.pack(expand=True, pady=(8, 4))
+btn_pintar.pack(fill="both", expand=True, padx=4, pady=(4, 2))
 
 lbl_pintar_sub = ctk.CTkLabel(
-    f_pintar_center,
+    f_marcha_b,
     text="Toque para alternar ciclo automático",
-    font=(FONT_MAIN, 9),
+    font=(FONT_MAIN, 10),
     text_color=TEXT_MUTED
 )
-lbl_pintar_sub.pack(pady=(0, 6))
+lbl_pintar_sub.pack(side="bottom", pady=(2, 4))
 
 # ==============================================================================
 # COLUMNA 2 (CENTRAL): ESTADO DEL FIXTURE (3x5) + DIAGNÓSTICO
@@ -4059,12 +4337,12 @@ def al_redimensionar_fixture(event=None):
 
 canvas_fixture.bind("<Configure>", al_redimensionar_fixture)
 
-# 2. Diagnóstico y Señales del PLC WAGO (Alarmas e Iluminación fiel al código original)
+# 2. Diagnóstico y Señales del PLC WAGO (Diseño Compacto y Ergonómico)
 card_diag = crear_card_moderna(col_2, "Diagnóstico & Señales del PLC WAGO")
-card_diag.pack(fill="x", pady=6)
+card_diag.pack(fill="x", pady=(4, 2))
 
 f_diag_b = ctk.CTkFrame(card_diag, fg_color="transparent")
-f_diag_b.pack(fill="x", padx=10, pady=8)
+f_diag_b.pack(fill="x", padx=10, pady=5)
 f_diag_b.columnconfigure(0, weight=1)
 f_diag_b.columnconfigure(1, weight=1)
 f_diag_b.columnconfigure(2, weight=1)
@@ -4073,13 +4351,13 @@ def crear_pill_ctk(parent, r, c, txt_init, cspan=1):
     lbl = ctk.CTkLabel(
         parent,
         text=txt_init,
-        font=(FONT_MAIN, 10, "bold"),
+        font=(FONT_MAIN, 9, "bold"),
         fg_color="#F8FAFC",
         text_color="#334155",
-        corner_radius=6,
-        height=32
+        corner_radius=5,
+        height=24
     )
-    lbl.grid(row=r, column=c, columnspan=cspan, padx=3, pady=2, sticky="ew")
+    lbl.grid(row=r, column=c, columnspan=cspan, padx=2, pady=1, sticky="ew")
     return lbl
 
 lbl_m_ene   = crear_pill_ctk(f_diag_b, 0, 0, "ENERGIZADOS", cspan=2)
@@ -4110,29 +4388,31 @@ def alternar_pestana_jog(event=None):
     if jog_pestana_retraida:
         # Retraer toda la sección JOG en la pestaña superior
         f_jog_b.pack_forget()
+        card_jog.pack_configure(fill="x", expand=False)
         if btn_toggle_jog:
             btn_toggle_jog.configure(
-                text="▼ Desplegar",
+                text="▼ Desplegar" if idioma_actual == "ES" else "▼ Expand",
                 fg_color=COLOR_KOSTAL_NAVY,
                 hover_color=COLOR_KOSTAL_ACCENT,
                 text_color="white"
             )
         if hasattr(card_jog, '_header_title'):
-            card_jog._header_title.configure(text="OPERACIÓN & JOG")
+            card_jog._header_title.configure(text=DICCIONARIO_IDIOMAS[idioma_actual]["op_jog"])
         if hasattr(card_jog, '_header_frame'):
             card_jog._header_frame.configure(fg_color="#E2E8F0")
     else:
-        # Desplegar toda la sección JOG
-        f_jog_b.pack(fill="x", padx=12, pady=8)
+        # Desplegar toda la sección JOG hacia abajo de forma amplia
+        card_jog.pack_configure(fill="both", expand=True)
+        f_jog_b.pack(fill="both", expand=True, padx=12, pady=6)
         if btn_toggle_jog:
             btn_toggle_jog.configure(
-                text="▲ Plegar",
+                text="▲ Plegar" if idioma_actual == "ES" else "▲ Fold",
                 fg_color="#E2E8F0",
                 hover_color=BORDER_CARD,
                 text_color=COLOR_KOSTAL_NAVY
             )
         if hasattr(card_jog, '_header_title'):
-            card_jog._header_title.configure(text="OPERACIÓN & JOG")
+            card_jog._header_title.configure(text=DICCIONARIO_IDIOMAS[idioma_actual]["op_jog"])
         if hasattr(card_jog, '_header_frame'):
             card_jog._header_frame.configure(fg_color="#F1F5F9")
 
@@ -4141,8 +4421,8 @@ def _widget_btn_toggle_jog(parent_hdr):
     btn_toggle_jog = ctk.CTkButton(
         parent_hdr,
         text="▲ Plegar",
-        width=80,
-        height=24,
+        width=85,
+        height=26,
         font=(FONT_MAIN, 10, "bold"),
         fg_color="#E2E8F0",
         hover_color=BORDER_CARD,
@@ -4152,13 +4432,13 @@ def _widget_btn_toggle_jog(parent_hdr):
     )
     return btn_toggle_jog
 
-# Tarjeta Única: Operación y Avance + Movimiento Manual JOG con botón de pestaña retráctil
+# Tarjeta Única: Operación y Avance + Movimiento Manual JOG (Expandible hacia abajo)
 card_jog = crear_card_moderna(
     col_3, 
-    "Operación & JOG",
+    "OPERACIÓN & JOG",
     btn_widget=_widget_btn_toggle_jog
 )
-card_jog.pack(fill="x", pady=(0, 6))
+card_jog.pack(fill="both", expand=True, pady=(0, 6))
 
 if hasattr(card_jog, '_header_frame'):
     card_jog._header_frame.bind("<Button-1>", alternar_pestana_jog)
@@ -4166,7 +4446,7 @@ if hasattr(card_jog, '_header_title'):
     card_jog._header_title.bind("<Button-1>", alternar_pestana_jog)
 
 f_jog_b = ctk.CTkFrame(card_jog, fg_color="transparent")
-f_jog_b.pack(fill="x", padx=10, pady=6)
+f_jog_b.pack(fill="both", expand=True, padx=10, pady=6)
 
 # ------------------------------------------------------------------------------
 # 1. SECCIÓN SUPERIOR: OPERACIÓN Y AVANCE
@@ -4195,7 +4475,7 @@ btn_manual.pack(fill="x", pady=(0, 6))
 f_vel_row = ctk.CTkFrame(f_jog_b, fg_color="transparent")
 f_vel_row.pack(fill="x", pady=(0, 6))
 ctk.CTkLabel(f_vel_row, text="Velocidad:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
-caja_vel = ctk.CTkEntry(f_vel_row, width=55, height=28, font=(FONT_MONO, 10, "bold"), justify="center", corner_radius=4)
+caja_vel = ctk.CTkEntry(f_vel_row, width=60, height=28, font=(FONT_MONO, 11, "bold"), justify="center", corner_radius=4)
 caja_vel.insert(0, str(config_actual.get("velocidad", "100")))
 caja_vel.pack(side="right", padx=(2, 0))
 ctk.CTkLabel(f_vel_row, text="mm/s", font=(FONT_MAIN, 9), text_color=TEXT_MUTED).pack(side="right")
@@ -4205,7 +4485,7 @@ sep_jog = ctk.CTkFrame(f_jog_b, fg_color=BORDER_LIGHT, height=1)
 sep_jog.pack(fill="x", pady=(2, 6))
 
 # ------------------------------------------------------------------------------
-# 2. SECCIÓN INFERIOR: MOVIMIENTO MANUAL JOG
+# 2. SECCIÓN INFERIOR: MOVIMIENTO MANUAL JOG (CRUCETA AGRANDADA)
 # ------------------------------------------------------------------------------
 f_sec_jog_hdr = ctk.CTkFrame(f_jog_b, fg_color=BG_INPUT, corner_radius=6, border_width=1, border_color=BORDER_LIGHT)
 f_sec_jog_hdr.pack(fill="x", pady=(0, 5))
@@ -4215,29 +4495,29 @@ ctk.CTkLabel(f_sec_jog_hdr, text="🕹️ JOG MANUAL", font=(FONT_MAIN, 10, "bol
 f_step_row = ctk.CTkFrame(f_jog_b, fg_color="transparent")
 f_step_row.pack(fill="x", pady=(0, 6))
 ctk.CTkLabel(f_step_row, text="Paso JOG:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
-caja_paso = ctk.CTkEntry(f_step_row, width=55, height=28, font=(FONT_MONO, 10, "bold"), justify="center", corner_radius=4)
+caja_paso = ctk.CTkEntry(f_step_row, width=60, height=28, font=(FONT_MONO, 11, "bold"), justify="center", corner_radius=4)
 caja_paso.insert(0, str(config_actual.get("paso_jog", "5.0")))
 caja_paso.pack(side="right", padx=(2, 0))
 ctk.CTkLabel(f_step_row, text="mm", font=(FONT_MAIN, 9), text_color=TEXT_MUTED).pack(side="right")
 
-# Cruzeta y Coordenadas
+# Cruzeta y Coordenadas Agrandadas
 f_jog_ctrl = ctk.CTkFrame(f_jog_b, fg_color="transparent")
-f_jog_ctrl.pack(fill="x", pady=2)
+f_jog_ctrl.pack(fill="x", pady=4)
 
 f_coord_box = ctk.CTkFrame(f_jog_ctrl, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_LIGHT)
 f_coord_box.pack(side="left", padx=(0, 6), pady=2)
 
-ctk.CTkLabel(f_coord_box, text="COORD (0-200)", font=(FONT_MAIN, 8, "bold"), text_color=TEXT_MUTED).pack(padx=6, pady=(3, 0))
+ctk.CTkLabel(f_coord_box, text="COORD (0-200)", font=(FONT_MAIN, 8, "bold"), text_color=TEXT_MUTED).pack(padx=8, pady=(4, 0))
 fc_x = ctk.CTkFrame(f_coord_box, fg_color="transparent")
-fc_x.pack(fill="x", padx=6, pady=1)
-ctk.CTkLabel(fc_x, text="X:", font=(FONT_MAIN, 10, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left")
-lbl_jog_coord_x = ctk.CTkLabel(fc_x, text=f"{cero_guardado_x:.2f}", font=(FONT_MONO, 11, "bold"), text_color=TEXT_PRIMARY)
+fc_x.pack(fill="x", padx=8, pady=2)
+ctk.CTkLabel(fc_x, text="X:", font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left")
+lbl_jog_coord_x = ctk.CTkLabel(fc_x, text=f"{cero_guardado_x:.2f}", font=(FONT_MONO, 12, "bold"), text_color=TEXT_PRIMARY)
 lbl_jog_coord_x.pack(side="right")
 
 fc_y = ctk.CTkFrame(f_coord_box, fg_color="transparent")
-fc_y.pack(fill="x", padx=6, pady=(1, 3))
-ctk.CTkLabel(fc_y, text="Y:", font=(FONT_MAIN, 10, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left")
-lbl_jog_coord_y = ctk.CTkLabel(fc_y, text=f"{cero_guardado_y:.2f}", font=(FONT_MONO, 11, "bold"), text_color=TEXT_PRIMARY)
+fc_y.pack(fill="x", padx=8, pady=(2, 4))
+ctk.CTkLabel(fc_y, text="Y:", font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left")
+lbl_jog_coord_y = ctk.CTkLabel(fc_y, text=f"{cero_guardado_y:.2f}", font=(FONT_MONO, 12, "bold"), text_color=TEXT_PRIMARY)
 lbl_jog_coord_y.pack(side="right")
 
 f_pad = ctk.CTkFrame(f_jog_ctrl, fg_color="transparent")
@@ -4247,33 +4527,33 @@ def btn_pad(parent, txt, cmd):
     return ctk.CTkButton(
         parent,
         text=txt,
-        font=(FONT_MAIN, 12, "bold"),
+        font=(FONT_MAIN, 15, "bold"),
         fg_color="#FFFFFF",
         hover_color="#F1F5F9",
         text_color="#1E293B",
         border_width=1,
         border_color=BORDER_LIGHT,
-        corner_radius=6,
-        width=42,
-        height=34,
+        corner_radius=8,
+        width=52,
+        height=44,
         command=cmd
     )
 
 btn_y_mas = btn_pad(f_pad, "▲", lambda: mover_cruzeta('Y', 1))
-btn_y_mas.grid(row=0, column=1, pady=1)
+btn_y_mas.grid(row=0, column=1, pady=2)
 
 btn_x_menos = btn_pad(f_pad, "◄", lambda: mover_cruzeta('X', -1))
-btn_x_menos.grid(row=1, column=0, padx=1)
+btn_x_menos.grid(row=1, column=0, padx=2)
 
-ctk.CTkLabel(f_pad, text="○", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).grid(row=1, column=1)
+ctk.CTkLabel(f_pad, text="○", font=(FONT_MAIN, 12), text_color=TEXT_MUTED).grid(row=1, column=1)
 
 btn_x_mas = btn_pad(f_pad, "►", lambda: mover_cruzeta('X', 1))
-btn_x_mas.grid(row=1, column=2, padx=1)
+btn_x_mas.grid(row=1, column=2, padx=2)
 
 btn_y_menos = btn_pad(f_pad, "▼", lambda: mover_cruzeta('Y', -1))
-btn_y_menos.grid(row=2, column=1, pady=1)
+btn_y_menos.grid(row=2, column=1, pady=2)
 
-# Botones de Referencia (Estilo Imagen 5)
+# Botones de Referencia y Activación Manual de Tampo
 f_refs = ctk.CTkFrame(f_jog_b, fg_color="transparent")
 f_refs.pack(fill="x", pady=(4, 0))
 
@@ -4288,7 +4568,7 @@ def btn_ref_flat(parent, txt, cmd, colr="#FFFFFF", text_c="#334155"):
         border_width=1,
         border_color=BORDER_LIGHT,
         corner_radius=6,
-        height=32,
+        height=34,
         command=cmd
     )
 
@@ -4304,12 +4584,16 @@ f_rf2.pack(fill="x", pady=2)
 btn_set_cero = btn_ref_flat(f_rf2, "↩ Set 0", guardar_posicion_como_cero, colr="#FFFFFF", text_c=COLOR_OK_TEXT)
 btn_set_cero.pack(side="left", expand=True, fill="x", padx=2)
 
+# Botón para activar marca S.tampo en el PLC (Solo permitido en Modo Manual)
+btn_activar_tampo = btn_ref_flat(f_rf2, "🏷️ Activar Tampo", activar_tampo_manual, colr="#FFFFFF", text_c=COLOR_KOSTAL_ACCENT)
+btn_activar_tampo.pack(side="left", expand=True, fill="x", padx=2)
+
 # DISPLAY NO EDITABLE DE CERO GUARDADO (INFERIOR DE CRUZETA)
 f_cero_readonly = ctk.CTkFrame(f_jog_b, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_CARD)
-f_cero_readonly.pack(fill="x", pady=(6, 2))
+f_cero_readonly.pack(fill="x", pady=(5, 2))
 
 f_cro_hdr = ctk.CTkFrame(f_cero_readonly, fg_color="transparent")
-f_cro_hdr.pack(fill="x", padx=8, pady=(4, 1))
+f_cro_hdr.pack(fill="x", padx=8, pady=(3, 1))
 ctk.CTkLabel(f_cro_hdr, text="🔒 CERO REGISTRADO:", font=(FONT_MAIN, 9, "bold"), text_color=TEXT_MUTED).pack(side="left")
 ctk.CTkLabel(f_cro_hdr, text="ORIGEN", font=(FONT_MAIN, 8, "bold"), text_color=COLOR_OK, fg_color=COLOR_OK_SOFT, corner_radius=4, padx=5).pack(side="right")
 
@@ -4319,20 +4603,20 @@ lbl_cero_jog_val = ctk.CTkLabel(
     font=(FONT_MONO, 11, "bold"),
     text_color=COLOR_KOSTAL_NAVY
 )
-lbl_cero_jog_val.pack(anchor="w", padx=8, pady=(0, 4))
+lbl_cero_jog_val.pack(anchor="w", padx=8, pady=(0, 3))
 
 # ==============================================================================
-# MANDOS MAESTROS DE MARCHA (LADO DERECHO INFERIOR: PARO, INICIO, RESET)
+# MANDOS MAESTROS DE MARCHA (LADO DERECHO INFERIOR COMPACTO: INICIO, RESET, PARO)
 # ==============================================================================
-card_mandos_der = crear_card_moderna(col_3, "Mandos de Control")
-card_mandos_der.pack(fill="both", expand=True, pady=(6, 0))
+card_mandos_der = crear_card_moderna(col_3, "MANDOS DE CONTROL")
+card_mandos_der.pack(fill="x", expand=False, pady=(4, 0))
 
 f_mandos_der_b = ctk.CTkFrame(card_mandos_der, fg_color="transparent")
-f_mandos_der_b.pack(fill="both", expand=True, padx=10, pady=10)
+f_mandos_der_b.pack(fill="x", padx=8, pady=6)
 
 # Fila superior: INICIO y RESET lado a lado
 f_ir_row = ctk.CTkFrame(f_mandos_der_b, fg_color="transparent")
-f_ir_row.pack(fill="both", expand=True, pady=(0, 6))
+f_ir_row.pack(fill="x", pady=(0, 4))
 
 btn_inicio = ctk.CTkButton(
     f_ir_row,
@@ -4342,10 +4626,10 @@ btn_inicio = ctk.CTkButton(
     hover_color=COLOR_OK_HOVER,
     text_color="white",
     corner_radius=8,
-    height=48,
+    height=42,
     command=iniciar_ciclo_general
 )
-btn_inicio.pack(side="left", fill="both", expand=True, padx=(0, 3))
+btn_inicio.pack(side="left", fill="x", expand=True, padx=(0, 3))
 
 btn_reset = ctk.CTkButton(
     f_ir_row,
@@ -4355,24 +4639,24 @@ btn_reset = ctk.CTkButton(
     hover_color=COLOR_WARN_HOVER,
     text_color="#1E293B",
     corner_radius=8,
-    height=48,
+    height=42,
     command=ejecutar_reset_general
 )
-btn_reset.pack(side="right", fill="both", expand=True, padx=(3, 0))
+btn_reset.pack(side="right", fill="x", expand=True, padx=(3, 0))
 
-# Fila inferior: PARO grande en rojo (escalado)
+# Fila inferior: PARO compacto y de alta visibilidad
 btn_stop = ctk.CTkButton(
     f_mandos_der_b,
     text="🛑  PARO",
-    font=(FONT_MAIN, 15, "bold"),
+    font=(FONT_MAIN, 14, "bold"),
     fg_color=COLOR_NOK,
     hover_color=COLOR_NOK_HOVER,
     text_color="white",
     corner_radius=8,
-    height=54,
+    height=46,
     command=alternar_stop
 )
-btn_stop.pack(fill="both", expand=True, pady=(4, 0))
+btn_stop.pack(fill="x", pady=(2, 0))
 
 # ------------------------------------------------------------------------------
 # 5.3. PANTALLA 3: MÓDULO ADMINISTRADOR (ESTILO 1:1 INTERFAZ_KOSTAL)
@@ -4536,12 +4820,36 @@ f_sb_spacer.pack(fill="both", expand=True)
 f_sb_bottom = ctk.CTkFrame(f_adm_nav, fg_color="transparent")
 f_sb_bottom.pack(fill="x", padx=12, pady=16)
 
-# Idioma ES / EN
-f_adm_lang = ctk.CTkFrame(f_sb_bottom, fg_color="#0F1E36", corner_radius=6, border_width=1, border_color="#243B66", height=28)
+# Idioma interactivo ES / EN
+f_adm_lang = ctk.CTkFrame(f_sb_bottom, fg_color="#0F1E36", corner_radius=6, border_width=1, border_color="#243B66", height=30)
 f_adm_lang.pack(fill="x", pady=(0, 12))
-ctk.CTkLabel(f_adm_lang, text="ES", font=(FONT_MAIN, 9, "bold"), text_color="white", padx=10).pack(side="left", expand=True)
-ctk.CTkLabel(f_adm_lang, text="|", font=(FONT_MAIN, 9), text_color="#334155").pack(side="left")
-ctk.CTkLabel(f_adm_lang, text="EN", font=(FONT_MAIN, 9), text_color="#94A3B8", padx=10).pack(side="left", expand=True)
+
+btn_adm_lang_es = ctk.CTkButton(
+    f_adm_lang,
+    text="ES",
+    width=55,
+    height=24,
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color="#004F9F",
+    text_color="white",
+    corner_radius=4,
+    command=lambda: cambiar_idioma("ES")
+)
+btn_adm_lang_es.pack(side="left", expand=True, padx=2, pady=3)
+
+btn_adm_lang_en = ctk.CTkButton(
+    f_adm_lang,
+    text="EN",
+    width=55,
+    height=24,
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color="transparent",
+    hover_color="#1E293B",
+    text_color="#94A3B8",
+    corner_radius=4,
+    command=lambda: cambiar_idioma("EN")
+)
+btn_adm_lang_en.pack(side="left", expand=True, padx=2, pady=3)
 
 # Usuario activo en la sidebar
 f_adm_user_card = ctk.CTkFrame(f_sb_bottom, fg_color="transparent")
@@ -5376,7 +5684,7 @@ def refrescar_lista_usuarios_admin():
         
         ctk.CTkButton(
             f_act,
-            text="👁",
+            text="✏️",
             font=(FONT_MAIN, 11),
             width=28,
             height=24,
