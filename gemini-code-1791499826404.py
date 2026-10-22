@@ -38,6 +38,10 @@ try:
     _orig_btn_draw = ctk.CTkButton._draw
     def _patched_btn_draw(self, no_color_updates=False):
         _orig_btn_draw(self, no_color_updates)
+        try:
+            self.configure(cursor="none")
+        except Exception:
+            pass
         for w in [self._canvas, self._text_label, self._image_label]:
             if w is not None and not getattr(w, "_touch_press_bound", False):
                 w._touch_press_bound = True
@@ -49,33 +53,18 @@ try:
     ctk.CTkButton._on_release = _patched_btn_on_release
     ctk.CTkButton._draw = _patched_btn_draw
 
-    # Función para solicitar apertura del teclado nativo asegurando que flote al frente
+    # Función para solicitar apertura del teclado nativo de Ubuntu GNOME (Foto 3)
     def invocar_teclado_nativo_ubuntu(e=None):
         if sys.platform.startswith("linux"):
             try:
                 import subprocess
-                # 1. Si onboard está instalado, configurarlo para flotar siempre encima (force-to-top)
-                subprocess.Popen([
-                    "gsettings", "set", "org.onboard.window", "force-to-top", "true"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen([
-                    "gsettings", "set", "org.onboard.window", "docking-enabled", "false"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen([
-                    "onboard"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen([
-                    "dbus-send", "--type=method_call",
-                    "--dest=org.onboard.Onboard",
-                    "/org/onboard/Onboard/Keyboard",
-                    "org.onboard.Onboard.Keyboard.Show"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                # 2. GNOME Shell teclado nativo
+                # 1. Habilitar el teclado en pantalla nativo de accesibilidad de GNOME
                 subprocess.Popen([
                     "gsettings", "set",
                     "org.gnome.desktop.a11y.applications",
                     "screen-keyboard-enabled", "true"
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                # 2. Desplegar el teclado nativo de GNOME Shell (Foto 3)
                 subprocess.Popen([
                     "gdbus", "call", "--session",
                     "--dest", "org.gnome.Shell",
@@ -83,17 +72,20 @@ try:
                     "--method", "org.gnome.Shell.Eval",
                     "Main.keyboard.open(null, true);"
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                # 3. Forzar ventana de teclado al frente absoluto con wmctrl
-                subprocess.Popen(["wmctrl", "-r", "Onboard", "-b", "add,above"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen(["wmctrl", "-a", "Onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
 
-    # En CTkEntry, asegurar que al tocar en cualquier punto del recuadro reciba foco inmediato
-    # y solicite el despliegue del teclado nativo de Ubuntu
+    # En CTkEntry, asegurar que al tocar en cualquier punto del recuadro reciba foco inmediato,
+    # oculte el cursor y despliegue el teclado nativo de GNOME
     _orig_entry_init = ctk.CTkEntry.__init__
     def _patched_entry_init(self, *args, **kwargs):
         _orig_entry_init(self, *args, **kwargs)
+        try:
+            self.configure(cursor="none")
+            if hasattr(self, "_entry") and self._entry is not None:
+                self._entry.configure(cursor="none")
+        except Exception:
+            pass
         def _al_tocar_entry(e=None):
             try:
                 self._entry.focus_set()
@@ -2344,10 +2336,16 @@ def monitoreo_ciclico():
 
 def cerrar_aplicacion():
     try:
-        cliente.disconnect()
+        ventana.destroy()
     except Exception:
         pass
-    ventana.destroy()
+    try:
+        if plc_conectado:
+            cliente.disconnect()
+    except Exception:
+        pass
+    import os
+    os._exit(0)
 
 def minimizar_ventana():
     """Minimiza la ventana asegurando compatibilidad con Linux/X11 y pantalla completa"""
@@ -2773,6 +2771,10 @@ ventana.title("KOSTAL Industrial HMI - Estación de Inserción y Pintado SMC")
 ventana.geometry("1366x768")
 ventana.minsize(1100, 720)
 ventana.configure(fg_color=BG_MAIN)
+try:
+    ventana.config(cursor="none")
+except Exception:
+    pass
 ventana.protocol("WM_DELETE_WINDOW", cerrar_aplicacion)
 
 # Modo Maximizado para pantalla completa
@@ -2807,6 +2809,10 @@ img_logo_baluarte_panel = cargar_imagen("LOGO_BALUARTE.png", 270, 68)
 # 5.1. PANTALLA 1: LOGIN LIMPIO CON VER/OCULTAR CONTRASEÑA
 # ------------------------------------------------------------------------------
 frame_login = ctk.CTkFrame(ventana, fg_color=BG_MAIN, corner_radius=0)
+try:
+    frame_login.configure(cursor="none")
+except Exception:
+    pass
 frame_login.pack(fill="both", expand=True)
 
 # Barra superior con botones de control de ventana (Minimizar / Pantalla) en Login
@@ -2951,6 +2957,10 @@ if img_logo_baluarte_login:
 # 5.2. PANTALLA 2: PANTALLA PRINCIPAL DEL OPERADOR
 # ------------------------------------------------------------------------------
 frame_operador = ctk.CTkFrame(ventana, fg_color=BG_MAIN, corner_radius=0)
+try:
+    frame_operador.configure(cursor="none")
+except Exception:
+    pass
 
 header_hmi = ctk.CTkFrame(frame_operador, fg_color="transparent", height=58, corner_radius=0)
 header_hmi.pack(fill="x", side="top", padx=12, pady=(8, 4))
@@ -4102,10 +4112,8 @@ card_jog.pack(fill="x", pady=(0, 6))
 
 if hasattr(card_jog, '_header_frame'):
     card_jog._header_frame.bind("<Button-1>", alternar_pestana_jog)
-    card_jog._header_frame.configure(cursor="hand2")
 if hasattr(card_jog, '_header_title'):
     card_jog._header_title.bind("<Button-1>", alternar_pestana_jog)
-    card_jog._header_title.configure(cursor="hand2")
 
 f_jog_b = ctk.CTkFrame(card_jog, fg_color="transparent")
 f_jog_b.pack(fill="x", padx=10, pady=6)
@@ -4320,6 +4328,10 @@ btn_stop.pack(fill="both", expand=True, pady=(4, 0))
 # 5.3. PANTALLA 3: MÓDULO ADMINISTRADOR (ESTILO 1:1 INTERFAZ_KOSTAL)
 # ------------------------------------------------------------------------------
 frame_admin = ctk.CTkFrame(ventana, fg_color=BG_MAIN, corner_radius=0)
+try:
+    frame_admin.configure(cursor="none")
+except Exception:
+    pass
 
 # Header Superior de Admin (Blanco limpio con Título, Subtítulo, Logo Baluarte y Reloj - Imágenes 1-4)
 hdr_admin = ctk.CTkFrame(frame_admin, fg_color="#FFFFFF", height=60, corner_radius=0, border_width=1, border_color=BORDER_CARD)
