@@ -19,6 +19,27 @@ from opcua import Client, ua
 # Además, un ligero deslizamiento del dedo durante el toque activa <Leave>.
 # Este parche asegura que los toques táctiles siempre se registren correctamente.
 try:
+    # Función para solicitar cierre del teclado cuando ya no se usa
+    def ocultar_teclado_nativo(e=None):
+        if sys.platform.startswith("linux"):
+            try:
+                import subprocess
+                subprocess.Popen([
+                    "dbus-send", "--type=method_call",
+                    "--dest=org.onboard.Onboard",
+                    "/org/onboard/Onboard/Keyboard",
+                    "org.onboard.Onboard.Keyboard.Hide"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen([
+                    "gdbus", "call", "--session",
+                    "--dest", "org.gnome.Shell",
+                    "--object-path", "/org/gnome/Shell",
+                    "--method", "org.gnome.Shell.Eval",
+                    "Main.keyboard.close();"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+
     def _patched_btn_on_release(self, event=None):
         if self._state not in ("disabled", tk.DISABLED):
             ahora = time.time()
@@ -32,6 +53,8 @@ try:
                 self.after(100, self._on_leave)
             except Exception:
                 pass
+            # Al tocar cualquier botón de acción, ocultar el teclado automáticamente
+            ocultar_teclado_nativo()
             if self._command is not None:
                 self._command()
 
@@ -53,12 +76,23 @@ try:
     ctk.CTkButton._on_release = _patched_btn_on_release
     ctk.CTkButton._draw = _patched_btn_draw
 
-    # Función para solicitar apertura del teclado asegurando que flote al frente
+    # Función para solicitar apertura del teclado escalado y asegurando que flote al frente
     def invocar_teclado_nativo_ubuntu(e=None):
         if sys.platform.startswith("linux"):
             try:
                 import subprocess
-                # 1. GNOME Shell teclado nativo
+                # 1. Escalar altura del teclado a 340px para teclas grandes y cómodas al tacto
+                subprocess.Popen([
+                    "gsettings", "set", "org.onboard.window.landscape", "dock-height", "340"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen([
+                    "gsettings", "set", "org.onboard.window.portrait", "dock-height", "340"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen([
+                    "gsettings", "set", "org.onboard.auto-show", "enabled", "true"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+                # 2. GNOME Shell teclado nativo
                 subprocess.Popen([
                     "gsettings", "set",
                     "org.gnome.desktop.a11y.interface",
@@ -77,11 +111,11 @@ try:
                     "Main.keyboard.open(null, true);"
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-                # 2. XFCE / Onboard: desplegar y forzar al frente absoluto por encima de la interfaz
+                # 3. XFCE / Onboard: desplegar y forzar al frente absoluto por encima de la interfaz
                 subprocess.Popen(["onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 subprocess.Popen([
                     "dbus-send", "--type=method_call",
-                    "--dest", "org.onboard.Onboard",
+                    "--dest=org.onboard.Onboard",
                     "/org/onboard/Onboard/Keyboard",
                     "org.onboard.Onboard.Keyboard.Show"
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -90,8 +124,8 @@ try:
             except Exception:
                 pass
 
-    # En CTkEntry, asegurar que al tocar en cualquier punto del recuadro reciba foco inmediato,
-    # oculte el cursor y despliegue el teclado nativo de GNOME
+    # En CTkEntry, asegurar que al tocar reciba foco inmediato, oculte cursor y despliegue teclado.
+    # Al presionar Enter, se oculta el teclado automáticamente.
     _orig_entry_init = ctk.CTkEntry.__init__
     def _patched_entry_init(self, *args, **kwargs):
         _orig_entry_init(self, *args, **kwargs)
@@ -112,6 +146,7 @@ try:
         if hasattr(self, "_entry") and self._entry is not None:
             self._entry.bind("<FocusIn>", lambda e: invocar_teclado_nativo_ubuntu(), add="+")
             self._entry.bind("<Button-1>", lambda e: invocar_teclado_nativo_ubuntu(), add="+")
+            self._entry.bind("<Return>", lambda e: ocultar_teclado_nativo(), add="+")
     ctk.CTkEntry.__init__ = _patched_entry_init
 
     # -------------------------------------------------------------------------
