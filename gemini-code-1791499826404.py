@@ -58,7 +58,13 @@ try:
         if sys.platform.startswith("linux"):
             try:
                 import subprocess
-                # 1. Habilitar el teclado en pantalla nativo de accesibilidad de GNOME
+                # 1. Habilitar el teclado en pantalla nativo (Ubuntu moderno 22.04 / 24.04+)
+                subprocess.Popen([
+                    "gsettings", "set",
+                    "org.gnome.desktop.a11y.interface",
+                    "show-on-screen-keyboard", "true"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                # Esquema para versiones anteriores de Ubuntu
                 subprocess.Popen([
                     "gsettings", "set",
                     "org.gnome.desktop.a11y.applications",
