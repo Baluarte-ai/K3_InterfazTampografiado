@@ -1,5 +1,5 @@
 {
-    "cero_guardado_x": 200.0,
+    "cero_guardado_x": 0.0,
     "cero_guardado_y": 0.0,
     "velocidad": 100,
     "paso_jog": 5.0,
@@ -15,7 +15,11 @@
             "delta_x": 25.0,
             "delta_y": 30.0,
             "velocidad": 100,
-            "imagen": "Assets/840d61ad-a9f0-4cc2-8114-b74643920fd2.jpg"
+            "imagen": "Assets/840d61ad-a9f0-4cc2-8114-b74643920fd2.jpg",
+            "cero_guardado_x": 0.0,
+            "cero_guardado_y": 0.0,
+            "cero_calibrado": true,
+            "corridas": 1
         },
         {
             "nombre": "KSL-002 - Inserto Palanca",
@@ -27,7 +31,11 @@
             "delta_x": 30.0,
             "delta_y": 35.0,
             "velocidad": 120,
-            "imagen": "Assets/a002db93-f06c-4ee5-97a2-60549ad9a379.jpg"
+            "imagen": "Assets/a002db93-f06c-4ee5-97a2-60549ad9a379.jpg",
+            "cero_guardado_x": 0.0,
+            "cero_guardado_y": 0.0,
+            "cero_calibrado": true,
+            "corridas": 1
         },
         {
             "nombre": "KSL-003 - Conector SMC",
@@ -39,7 +47,11 @@
             "delta_x": 20.0,
             "delta_y": 20.0,
             "velocidad": 110,
-            "imagen": "Assets/cd87b1e8-6d7b-48fd-af44-a450125bdfd1.jpg"
+            "imagen": "Assets/cd87b1e8-6d7b-48fd-af44-a450125bdfd1.jpg",
+            "cero_guardado_x": 0.0,
+            "cero_guardado_y": 0.0,
+            "cero_calibrado": true,
+            "corridas": 1
         },
         {
             "nombre": "Brayan",
@@ -51,7 +63,11 @@
             "delta_x": 28.0,
             "delta_y": 32.0,
             "velocidad": 115,
-            "imagen": "C:/Users/eliza/Downloads/descarga (5).jpg"
+            "imagen": "C:/Users/eliza/Downloads/descarga (5).jpg",
+            "cero_guardado_x": 0.0,
+            "cero_guardado_y": 0.0,
+            "cero_calibrado": true,
+            "corridas": 1
         },
         {
             "nombre": "Prueba 1",
@@ -63,7 +79,11 @@
             "delta_x": 37.0,
             "delta_y": 35.0,
             "velocidad": 100,
-            "imagen": "C:/Users/eliza/Downloads/Screenshot 2026-10-09 134218.png"
+            "imagen": "C:/Users/eliza/Downloads/Screenshot 2026-10-09 134218.png",
+            "cero_guardado_x": 0.0,
+            "cero_guardado_y": 0.0,
+            "cero_calibrado": true,
+            "corridas": 1
         },
         {
             "nombre": "a",
@@ -75,7 +95,11 @@
             "delta_x": 37.0,
             "delta_y": 35.0,
             "velocidad": 110,
-            "imagen": "C:/Users/eliza/Downloads/Screenshot 2026-10-09 134218.png"
+            "imagen": "C:/Users/eliza/Downloads/Screenshot 2026-10-09 134218.png",
+            "cero_guardado_x": 0.0,
+            "cero_guardado_y": 0.0,
+            "cero_calibrado": true,
+            "corridas": 1
         },
         {
             "nombre": "Botón B",
@@ -87,7 +111,11 @@
             "delta_x": 30.0,
             "delta_y": 20.0,
             "velocidad": 115,
-            "imagen": "C:\\Users\\eliza\\Desktop\\Interfaz Kostal 1.0\\Assets\\840d61ad-a9f0-4cc2-8114-b74643920fd2.jpg"
+            "imagen": "C:\\Users\\eliza\\Desktop\\Interfaz Kostal 1.0\\Assets\\840d61ad-a9f0-4cc2-8114-b74643920fd2.jpg",
+            "cero_guardado_x": 0.0,
+            "cero_guardado_y": 0.0,
+            "cero_calibrado": true,
+            "corridas": 1
         }
     ],
     "usuarios": [

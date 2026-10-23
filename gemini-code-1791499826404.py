@@ -302,6 +302,10 @@ DEFAULT_RECETAS = [
         "delta_x": 25.0,
         "delta_y": 30.0,
         "velocidad": 100,
+        "cero_guardado_x": 0.0,
+        "cero_guardado_y": 0.0,
+        "cero_calibrado": True,
+        "corridas": 1,
         "imagen": os.path.join(BASE_DIR, "Assets", "840d61ad-a9f0-4cc2-8114-b74643920fd2.jpg")
     },
     {
@@ -314,6 +318,10 @@ DEFAULT_RECETAS = [
         "delta_x": 30.0,
         "delta_y": 35.0,
         "velocidad": 120,
+        "cero_guardado_x": 0.0,
+        "cero_guardado_y": 0.0,
+        "cero_calibrado": True,
+        "corridas": 1,
         "imagen": os.path.join(BASE_DIR, "Assets", "a002db93-f06c-4ee5-97a2-60549ad9a379.jpg")
     },
     {
@@ -326,6 +334,10 @@ DEFAULT_RECETAS = [
         "delta_x": 20.0,
         "delta_y": 20.0,
         "velocidad": 110,
+        "cero_guardado_x": 0.0,
+        "cero_guardado_y": 0.0,
+        "cero_calibrado": True,
+        "corridas": 1,
         "imagen": os.path.join(BASE_DIR, "Assets", "cd87b1e8-6d7b-48fd-af44-a450125bdfd1.jpg")
     }
 ]
@@ -355,6 +367,16 @@ def cargar_configuracion():
                 # Si las recetas guardadas son de formato antiguo o incompletas, asegurar campos
                 recetas_cargadas = []
                 for r in config_actual.get("recetas", []):
+                    r_cero_x = limitar_coord_x(float(r.get("cero_guardado_x", 0.0)))
+                    r_cero_y = limitar_coord_y(float(r.get("cero_guardado_y", 0.0)))
+                    r_corridas = int(r.get("corridas", 0))
+                    r_calibrado = bool(r.get("cero_calibrado", False) or r_corridas > 0 or ("cero_guardado_x" in r and "cero_guardado_y" in r))
+                    
+                    # Para recetas estándar base, si no tenían marca previa de calibración, dejarlas pre-ajustadas
+                    if not r_calibrado and r.get("nombre") in ["KSL-001 - Bisel Frontal", "KSL-002 - Inserto Palanca", "KSL-003 - Conector SMC"]:
+                        r_calibrado = True
+                        r_corridas = max(1, r_corridas)
+                        
                     r_norm = {
                         "nombre": r.get("nombre", "Receta"),
                         "pieza": r.get("pieza", "Pieza SMC"),
@@ -365,7 +387,11 @@ def cargar_configuracion():
                         "delta_x": float(r.get("delta_x", r.get("avance_x", 25.0))),
                         "delta_y": float(r.get("delta_y", r.get("avance_y", 30.0))),
                         "velocidad": int(r.get("velocidad", 100)),
-                        "imagen": r.get("imagen", "")
+                        "imagen": r.get("imagen", ""),
+                        "cero_guardado_x": r_cero_x,
+                        "cero_guardado_y": r_cero_y,
+                        "cero_calibrado": r_calibrado,
+                        "corridas": r_corridas
                     }
                     recetas_cargadas.append(r_norm)
                 if recetas_cargadas:
@@ -549,10 +575,17 @@ maquina_en_home = False
 contador_ciclos_completados = 0
 receta_actual_calibrada = config_actual.get("receta_activa", "")
 
-# Coordenadas cargadas y limitadas entre 0.0 y 200.0
-cero_guardado_x = limitar_coord(config_actual.get("cero_guardado_x", 0.0))
-cero_guardado_y = limitar_coord(config_actual.get("cero_guardado_y", 0.0))
-cero_ha_sido_seteado = False  # Requiere calibrar y confirmar Set 0 antes de pintar en cada turno
+# Coordenadas cargadas y limitadas entre 0.0 y 85.0 mm (X) y 0.0 y 200.0 mm (Y)
+_rec_act_ini = next((r for r in config_actual.get("recetas", []) if r.get("nombre") == config_actual.get("receta_activa")), None)
+if _rec_act_ini and (_rec_act_ini.get("cero_calibrado", False) or _rec_act_ini.get("corridas", 0) > 0 or ("cero_guardado_x" in _rec_act_ini and "cero_guardado_y" in _rec_act_ini)):
+    cero_guardado_x = limitar_coord_x(_rec_act_ini.get("cero_guardado_x", config_actual.get("cero_guardado_x", 0.0)))
+    cero_guardado_y = limitar_coord_y(_rec_act_ini.get("cero_guardado_y", config_actual.get("cero_guardado_y", 0.0)))
+    cero_ha_sido_seteado = True
+else:
+    cero_guardado_x = limitar_coord_x(config_actual.get("cero_guardado_x", 0.0))
+    cero_guardado_y = limitar_coord_y(config_actual.get("cero_guardado_y", 0.0))
+    cero_ha_sido_seteado = False
+
 ultimo_estado_pintado = False
 ultimo_estado_sensor_y = False
 
@@ -1370,7 +1403,7 @@ def cargar_receta_por_nombre(nombre_receta, mostrar_modal_aviso=True):
     """
     global matriz_filas, matriz_cols, matriz_total, matriz_delta_x, matriz_delta_y, matriz_dist_diag
     global fixture_piezas_estado, indice_matriz_actual, cero_ha_sido_seteado, maquina_en_home
-    global receta_actual_calibrada
+    global receta_actual_calibrada, cero_guardado_x, cero_guardado_y
     
     receta = None
     for r in config_actual.get("recetas", []):
@@ -1393,11 +1426,44 @@ def cargar_receta_por_nombre(nombre_receta, mostrar_modal_aviso=True):
         receta_actual_calibrada = nombre_receta
 
     config_actual["receta_activa"] = nombre_receta
+    receta_actual_calibrada = nombre_receta
     guardar_configuracion()
     
-    # Si cambió la receta / jig, obligar a volver a setear Set 0 para la nueva receta
-    if cambio_de_receta:
-        receta_actual_calibrada = nombre_receta
+    # REQUERIMIENTO: Si la receta ya se corrió al menos una vez o ya tiene Set 0 calibrado,
+    # se mantiene ajustado su Set 0 como predeterminado y queda listo para pintar.
+    ya_calibrada = bool(
+        receta.get("cero_calibrado", False) 
+        or receta.get("corridas", 0) > 0 
+        or ("cero_guardado_x" in receta and "cero_guardado_y" in receta)
+    )
+    
+    if ya_calibrada:
+        cero_guardado_x = limitar_coord_x(float(receta.get("cero_guardado_x", 0.0)))
+        cero_guardado_y = limitar_coord_y(float(receta.get("cero_guardado_y", 0.0)))
+        config_actual["cero_guardado_x"] = cero_guardado_x
+        config_actual["cero_guardado_y"] = cero_guardado_y
+        cero_ha_sido_seteado = True
+        maquina_en_home = False
+        
+        if 'caja_pos_x' in globals():
+            caja_pos_x.delete(0, tk.END); caja_pos_x.insert(0, f"{cero_guardado_x:.2f}")
+        if 'caja_pos_y' in globals():
+            caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{cero_guardado_y:.2f}")
+        if 'lbl_jog_coord_x' in globals():
+            lbl_jog_coord_x.configure(text=f"{cero_guardado_x:.2f}")
+        if 'lbl_jog_coord_y' in globals():
+            lbl_jog_coord_y.configure(text=f"{cero_guardado_y:.2f}")
+            
+        if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
+            lbl_indicador_set0.configure(
+                text=f"✓ CERO PREDETERMINADO: X={cero_guardado_x:.2f}  Y={cero_guardado_y:.2f} mm",
+                text_color="#065F46"
+            )
+        if 'f_cero_ind' in globals() and f_cero_ind:
+            f_cero_ind.configure(fg_color="#ECFDF5", border_color="#A7F3D0")
+        if 'lbl_cero_jog_val' in globals() and lbl_cero_jog_val:
+            lbl_cero_jog_val.configure(text=f"X: {cero_guardado_x:.2f} mm  |  Y: {cero_guardado_y:.2f} mm")
+    else:
         cero_ha_sido_seteado = False
         maquina_en_home = False
         if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
@@ -1407,11 +1473,6 @@ def cargar_receta_por_nombre(nombre_receta, mostrar_modal_aviso=True):
             )
         if 'f_cero_ind' in globals() and f_cero_ind:
             f_cero_ind.configure(fg_color="#FEF3C7", border_color="#FDE68A")
-        if 'lbl_estado' in globals() and lbl_estado:
-            lbl_estado.configure(
-                text=f"⚠️ Cambio a Jig '{nombre_receta}'. Debe ajustar Set 0 con la Cruceta JOG antes de iniciar el pintado.",
-                text_color=COLOR_WARN
-            )
     
     # 1. Geometría de matriz (configurable arbitrariamente)
     matriz_filas = max(1, int(receta.get("filas", 3)))
@@ -1458,18 +1519,30 @@ def cargar_receta_por_nombre(nombre_receta, mostrar_modal_aviso=True):
     
     if 'lbl_estado' in globals():
         if cambio_de_receta:
-            lbl_estado.configure(
-                text=f"⚠️ Cambio de Jig/Receta: '{nombre_receta}'. Requiere solo setteo del 0 ('Set 0') y regreso a home ('Ir a home').",
-                text_color=COLOR_WARN
-            )
-            # Durante el Paso 1 del tutorial guiado o si viene de confirmación explícita, no desplegar modal intrusivo
-            if mostrar_modal_aviso and not ('_tutorial_activo' in globals() and _tutorial_activo and _paso_tutorial_actual == 1):
-                ventana.after(300, lambda nr=nombre_receta: mostrar_alerta_cambio_jig(nr))
+            if ya_calibrada:
+                lbl_estado.configure(
+                    text=f"✓ Jig/Receta '{nombre_receta}' cargada con su Cero predeterminado (X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f} mm). Listo para iniciar pintado.",
+                    text_color=COLOR_OK
+                )
+            else:
+                lbl_estado.configure(
+                    text=f"⚠️ Cambio a Jig '{nombre_receta}'. Debe calibrar 'Set 0' con la Cruceta JOG antes de iniciar el pintado.",
+                    text_color=COLOR_WARN
+                )
+                # Durante el Paso 1 del tutorial guiado o si viene de confirmación explícita, no desplegar modal intrusivo
+                if mostrar_modal_aviso and not ('_tutorial_activo' in globals() and _tutorial_activo and _paso_tutorial_actual == 1):
+                    ventana.after(300, lambda nr=nombre_receta: mostrar_alerta_cambio_jig(nr))
         else:
-            lbl_estado.configure(
-                text=f"✓ Receta cargada: '{nombre_receta}' | Matriz: {matriz_filas}×{matriz_cols} | Set 0 y Home vigentes.",
-                text_color=COLOR_OK
-            )
+            if ya_calibrada:
+                lbl_estado.configure(
+                    text=f"✓ Receta '{nombre_receta}' lista | Matriz: {matriz_filas}×{matriz_cols} | Cero predeterminado: X={cero_guardado_x:.2f} Y={cero_guardado_y:.2f} mm.",
+                    text_color=COLOR_OK
+                )
+            else:
+                lbl_estado.configure(
+                    text=f"⚠️ Receta '{nombre_receta}' cargada | Matriz: {matriz_filas}×{matriz_cols} | Set 0 PENDIENTE de calibrar.",
+                    text_color=COLOR_WARN
+                )
 
     # Si el tutorial guiado está activo en el Paso 1, avanzar automáticamente al Paso 2
     if '_tutorial_activo' in globals() and _tutorial_activo and _paso_tutorial_actual == 1:
@@ -2145,6 +2218,16 @@ def guardar_posicion_como_cero():
         
         config_actual["cero_guardado_x"] = cero_guardado_x
         config_actual["cero_guardado_y"] = cero_guardado_y
+        
+        # REQUERIMIENTO: Guardar el 0 en la receta activa como su CERO PREDETERMINADO
+        rec_activa_nom = config_actual.get("receta_activa", "")
+        for r in config_actual.get("recetas", []):
+            if r.get("nombre") == rec_activa_nom:
+                r["cero_guardado_x"] = cero_guardado_x
+                r["cero_guardado_y"] = cero_guardado_y
+                r["cero_calibrado"] = True
+                break
+                
         guardar_configuracion()
         
         actualizar_coordenadas_matriz()
@@ -2156,7 +2239,7 @@ def guardar_posicion_como_cero():
             f_cero_ind.configure(fg_color="#ECFDF5", border_color="#A7F3D0")
         if 'lbl_cero_jog_val' in globals() and lbl_cero_jog_val:
             lbl_cero_jog_val.configure(text=f"X: {cero_guardado_x:.2f} mm  |  Y: {cero_guardado_y:.2f} mm")
-        lbl_estado.configure(text=f"✓ Set 0 calibrado exitosamente en X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f} mm. Listo para pintar.", text_color=COLOR_OK)
+        lbl_estado.configure(text=f"✓ Set 0 calibrado y fijado como predeterminado para '{rec_activa_nom}' en X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f} mm. Listo para pintar.", text_color=COLOR_OK)
         if '_tutorial_activo' in globals() and _tutorial_activo and _paso_tutorial_actual == 2:
             notificar_accion_tutorial(2, delay_ms=800)
     except ValueError:
@@ -2324,6 +2407,17 @@ def alternar_pintar():
             estado_pintar = True
             maquina_en_home = False
             btn_pintar.configure(text="🎨\nPINTANDO\nACTIVO\n[ON]", fg_color=COLOR_WARN, text_color="#1E293B", border_color="#B45309")
+            
+            # REQUERIMIENTO: Si la receta ya se corrió una vez, se queda ajustado el 0 como su predeterminado
+            rec_activa_nom = config_actual.get("receta_activa", "")
+            for r in config_actual.get("recetas", []):
+                if r.get("nombre") == rec_activa_nom:
+                    r["corridas"] = r.get("corridas", 0) + 1
+                    r["cero_calibrado"] = True
+                    r["cero_guardado_x"] = cero_guardado_x
+                    r["cero_guardado_y"] = cero_guardado_y
+                    break
+            guardar_configuracion()
             
             # Requisito: Cerrar automáticamente el modo manual al activar pintar
             global estado_manual
@@ -2971,6 +3065,8 @@ def abrir_dialogo_seleccion_jig():
         lbl_det_mat.pack(fill="x", pady=2)
         lbl_det_dist = ctk.CTkLabel(f_det_txt, text="Dist. C-C: -", font=(FONT_MONO, 10), text_color=TEXT_MUTED, anchor="w")
         lbl_det_dist.pack(fill="x", pady=1)
+        lbl_det_cero = ctk.CTkLabel(f_det_txt, text="Set 0: -", font=(FONT_MONO, 10, "bold"), text_color="#065F46", anchor="w")
+        lbl_det_cero.pack(fill="x", pady=1)
 
         f_img_box = ctk.CTkFrame(f_detalles_rec, fg_color="#FFFFFF", corner_radius=6, border_width=1, border_color="#CBD5E1", width=125, height=105)
         f_img_box.pack(side="right", padx=12, pady=10)
@@ -2992,6 +3088,14 @@ def abrir_dialogo_seleccion_jig():
                     lbl_det_mat.configure(text=f"Matriz Fixture: {fil} × {col} ({tot} Piezas)")
                     lbl_det_dist.configure(text=f"Dist. C-C: ΔX={rec_obj.get('delta_x', 0):.1f} mm | ΔY={rec_obj.get('delta_y', 0):.1f} mm")
                     
+                    ya_cal = bool(rec_obj.get("cero_calibrado", False) or rec_obj.get("corridas", 0) > 0 or ("cero_guardado_x" in rec_obj and "cero_guardado_y" in rec_obj))
+                    gx = float(rec_obj.get("cero_guardado_x", 0.0))
+                    gy = float(rec_obj.get("cero_guardado_y", 0.0))
+                    if ya_cal:
+                        lbl_det_cero.configure(text=f"✓ Cero Predeterminado: X={gx:.2f} | Y={gy:.2f} mm", text_color="#065F46")
+                    else:
+                        lbl_det_cero.configure(text="⚠️ Cero: Pendiente de calibrar con JOG", text_color="#B45309")
+
                     img_path = rec_obj.get("imagen", "")
                     ctk_img = cargar_imagen(img_path, 115, 95)
                     if ctk_img:
@@ -3031,30 +3135,39 @@ def abrir_dialogo_seleccion_jig():
                     except Exception:
                         pass
                     
-                # Establecer Set 0 pendiente para la primera corrida de este Jig
-                cero_ha_sido_seteado = False
-                if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
-                    try:
-                        lbl_indicador_set0.configure(
-                            text=f"⚠️ SET 0 PENDIENTE: Calibre origen para '{rec_elegida}' con JOG y presione '↩ Set 0'",
-                            text_color="#B45309"
-                        )
-                    except Exception:
-                        pass
-                if 'f_cero_ind' in globals() and f_cero_ind:
-                    try:
-                        f_cero_ind.configure(fg_color="#FEF3C7", border_color="#FDE68A")
-                    except Exception:
-                        pass
-                    
-                if 'lbl_estado' in globals() and lbl_estado:
-                    try:
-                        lbl_estado.configure(
-                            text=f"✓ Jig '{rec_elegida}' confirmado. Calibre Set 0 con la Cruceta JOG antes de iniciar el pintado.",
-                            text_color=COLOR_WARN
-                        )
-                    except Exception:
-                        pass
+                # Si la receta ya se corrió al menos una vez o ya tiene Set 0 calibrado,
+                # cargar_receta_por_nombre ya fijó cero_ha_sido_seteado = True con sus coordenadas predeterminadas
+                if cero_ha_sido_seteado:
+                    if 'lbl_estado' in globals() and lbl_estado:
+                        try:
+                            lbl_estado.configure(
+                                text=f"✓ Jig '{rec_elegida}' confirmado con Cero predeterminado (X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f} mm). Listo para pintar.",
+                                text_color=COLOR_OK
+                            )
+                        except Exception:
+                            pass
+                else:
+                    if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
+                        try:
+                            lbl_indicador_set0.configure(
+                                text=f"⚠️ SET 0 PENDIENTE: Calibre origen para '{rec_elegida}' con JOG y presione '↩ Set 0'",
+                                text_color="#B45309"
+                            )
+                        except Exception:
+                            pass
+                    if 'f_cero_ind' in globals() and f_cero_ind:
+                        try:
+                            f_cero_ind.configure(fg_color="#FEF3C7", border_color="#FDE68A")
+                        except Exception:
+                            pass
+                    if 'lbl_estado' in globals() and lbl_estado:
+                        try:
+                            lbl_estado.configure(
+                                text=f"✓ Jig '{rec_elegida}' confirmado. Calibre Set 0 con la Cruceta JOG antes de iniciar el pintado.",
+                                text_color=COLOR_WARN
+                            )
+                        except Exception:
+                            pass
             except Exception as err:
                 print(f"Error procesando confirmación de Jig: {err}")
             finally:
@@ -3116,18 +3229,35 @@ def iniciar_sesion(usuario_seleccionado, rol="OPERADOR"):
     frame_admin.pack_forget()
     frame_operador.pack(fill="both", expand=True)
     
-    global cero_ha_sido_seteado
-    cero_ha_sido_seteado = False
-    if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
-        lbl_indicador_set0.configure(
-            text="⚠️ SET 0 PENDIENTE: Calibre con Cruceta JOG y presione '↩ Set 0'",
-            text_color="#B45309"
-        )
-    if 'f_cero_ind' in globals() and f_cero_ind:
-        f_cero_ind.configure(fg_color="#FEF3C7", border_color="#FDE68A")
+    global cero_ha_sido_seteado, cero_guardado_x, cero_guardado_y
+    # Comprobar si la receta activa actual ya tiene su Set 0 predeterminado ajustado
+    rec_activa_nom = config_actual.get("receta_activa", "")
+    rec_obj = next((r for r in config_actual.get("recetas", []) if r.get("nombre") == rec_activa_nom), None)
+    if rec_obj and (rec_obj.get("cero_calibrado", False) or rec_obj.get("corridas", 0) > 0 or ("cero_guardado_x" in rec_obj and "cero_guardado_y" in rec_obj)):
+        cero_guardado_x = limitar_coord_x(float(rec_obj.get("cero_guardado_x", config_actual.get("cero_guardado_x", 0.0))))
+        cero_guardado_y = limitar_coord_y(float(rec_obj.get("cero_guardado_y", config_actual.get("cero_guardado_y", 0.0))))
+        cero_ha_sido_seteado = True
+        if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
+            lbl_indicador_set0.configure(
+                text=f"✓ CERO PREDETERMINADO: X={cero_guardado_x:.2f}  Y={cero_guardado_y:.2f} mm",
+                text_color="#065F46"
+            )
+        if 'f_cero_ind' in globals() and f_cero_ind:
+            f_cero_ind.configure(fg_color="#ECFDF5", border_color="#A7F3D0")
+        if 'lbl_cero_jog_val' in globals() and lbl_cero_jog_val:
+            lbl_cero_jog_val.configure(text=f"X: {cero_guardado_x:.2f} mm  |  Y: {cero_guardado_y:.2f} mm")
+    else:
+        cero_ha_sido_seteado = False
+        if 'lbl_indicador_set0' in globals() and lbl_indicador_set0:
+            lbl_indicador_set0.configure(
+                text="⚠️ SET 0 PENDIENTE: Calibre con Cruceta JOG y presione '↩ Set 0'",
+                text_color="#B45309"
+            )
+        if 'f_cero_ind' in globals() and f_cero_ind:
+            f_cero_ind.configure(fg_color="#FEF3C7", border_color="#FDE68A")
         
     lbl_estado.configure(
-        text=f"✓ Sesión iniciada: {usuario_seleccionado} ({rol}) | Seleccione Jig y calibre Set 0 antes de pintar.",
+        text=f"✓ Sesión iniciada: {usuario_seleccionado} ({rol}) | Receta activa: '{rec_activa_nom}'.",
         text_color=COLOR_OK
     )
     
@@ -5777,9 +5907,18 @@ def guardar_o_actualizar_receta():
             break
             
     if idx_existente >= 0:
+        receta_previa = config_actual["recetas"][idx_existente]
+        receta_dict["cero_guardado_x"] = receta_previa.get("cero_guardado_x", 0.0)
+        receta_dict["cero_guardado_y"] = receta_previa.get("cero_guardado_y", 0.0)
+        receta_dict["cero_calibrado"] = receta_previa.get("cero_calibrado", False)
+        receta_dict["corridas"] = receta_previa.get("corridas", 0)
         config_actual["recetas"][idx_existente] = receta_dict
         msg = f"Receta '{nom}' actualizada con éxito."
     else:
+        receta_dict["cero_guardado_x"] = 0.0
+        receta_dict["cero_guardado_y"] = 0.0
+        receta_dict["cero_calibrado"] = False
+        receta_dict["corridas"] = 0
         if "recetas" not in config_actual:
             config_actual["recetas"] = []
         config_actual["recetas"].append(receta_dict)
