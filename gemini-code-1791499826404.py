@@ -19,8 +19,13 @@ from opcua import Client, ua
 # Además, un ligero deslizamiento del dedo durante el toque activa <Leave>.
 # Este parche asegura que los toques táctiles siempre se registren correctamente.
 try:
+    # Estado de visibilidad del teclado táctil
+    _estado_teclado_visible = False
+
     # Función para solicitar cierre del teclado cuando ya no se usa
-    def ocultar_teclado_nativo(e=None):
+    def ocultar_teclado_nativo(e=None, forzar=False):
+        global _estado_teclado_visible
+        _estado_teclado_visible = False
         if sys.platform.startswith("linux"):
             try:
                 import subprocess
@@ -32,11 +37,24 @@ try:
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 subprocess.Popen([
                     "gdbus", "call", "--session",
+                    "--dest", "org.onboard.Onboard",
+                    "--object-path", "/org/onboard/Onboard/Keyboard",
+                    "--method", "org.onboard.Onboard.Keyboard.Hide"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen([
+                    "gdbus", "call", "--session",
                     "--dest", "org.gnome.Shell",
                     "--object-path", "/org/gnome/Shell",
                     "--method", "org.gnome.Shell.Eval",
                     "Main.keyboard.close();"
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen([
+                    "gsettings", "set",
+                    "org.gnome.desktop.a11y.interface",
+                    "show-on-screen-keyboard", "false"
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if forzar:
+                    subprocess.Popen(["pkill", "-f", "onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
 
@@ -78,6 +96,8 @@ try:
 
     # Función para solicitar apertura del teclado escalado y asegurando que flote al frente
     def invocar_teclado_nativo_ubuntu(e=None):
+        global _estado_teclado_visible
+        _estado_teclado_visible = True
         if sys.platform.startswith("linux"):
             try:
                 import subprocess
@@ -89,7 +109,7 @@ try:
                     "gsettings", "set", "org.onboard.window.portrait", "dock-height", "340"
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 subprocess.Popen([
-                    "gsettings", "set", "org.onboard.auto-show", "enabled", "true"
+                    "gsettings", "set", "org.onboard.auto-show", "enabled", "false"
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
                 # 2. GNOME Shell teclado nativo
@@ -123,6 +143,14 @@ try:
                 subprocess.Popen(["wmctrl", "-a", "Onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
+
+    def alternar_teclado_tactil():
+        """Alterna visibilidad del teclado táctil con un solo toque del operador"""
+        global _estado_teclado_visible
+        if _estado_teclado_visible:
+            ocultar_teclado_nativo(forzar=True)
+        else:
+            invocar_teclado_nativo_ubuntu()
 
     # En CTkEntry, asegurar que al tocar reciba foco inmediato, oculte cursor y despliegue teclado.
     # Al presionar Enter, se oculta el teclado automáticamente.
@@ -364,7 +392,7 @@ REGISTROS_PRODUCCION = [
 # 2. CONEXIÓN Y DEFINICIÓN DE NODOS OPC UA (PRESERVANDO 100% FUNCIONALIDAD ORIGINAL)
 # ==============================================================================
 url = config_actual["ajustes_globales"].get("plc_url", "opc.tcp://192.168.1.69:4840")
-cliente = Client(url)
+cliente = Client(url, timeout=1.5)
 plc_conectado = False
 
 class MockNode:
@@ -2638,15 +2666,24 @@ def monitoreo_ciclico():
     ventana.after(80, monitoreo_ciclico)
 
 def cerrar_aplicacion():
+    # 1. Ocultar y cerrar teclado en pantalla inmediatamente
+    try:
+        ocultar_teclado_nativo(forzar=True)
+    except Exception:
+        pass
+    # 2. Desconectar PLC en hilo secundario daemon para evitar demoras de red
+    try:
+        if plc_conectado:
+            import threading
+            threading.Thread(target=cliente.disconnect, daemon=True).start()
+    except Exception:
+        pass
+    # 3. Destruir ventana principal
     try:
         ventana.destroy()
     except Exception:
         pass
-    try:
-        if plc_conectado:
-            cliente.disconnect()
-    except Exception:
-        pass
+    # 4. Salida inmediata del proceso sin esperas
     import os
     os._exit(0)
 
@@ -2746,6 +2783,7 @@ def abrir_dialogo_seleccion_jig():
     No permite pintar hasta que el operador calibre y ajuste el Set 0 en el panel principal.
     """
     global _top_dialogo_jig
+    ocultar_teclado_nativo()
     if _top_dialogo_jig is not None and _top_dialogo_jig.winfo_exists():
         try:
             _top_dialogo_jig.lift()
@@ -2911,6 +2949,7 @@ def abrir_dialogo_seleccion_jig():
             except Exception as err:
                 print(f"Error procesando confirmación de Jig: {err}")
             finally:
+                ocultar_teclado_nativo()
                 try:
                     top_jig.grab_release()
                 except Exception:
@@ -2947,6 +2986,7 @@ def iniciar_sesion(usuario_seleccionado, rol="OPERADOR"):
     REQUERIMIENTO: Solo se detona la variable INICIO si el login es correcto.
     """
     global usuario_actual, segundos_sesion
+    ocultar_teclado_nativo()
     usuario_actual = {"nombre": usuario_seleccionado, "rol": rol}
     
     # DETONAR PULSO DE VARIABLE INICIO AL VALIDAR CORRECTAMENTE
@@ -2988,6 +3028,7 @@ def iniciar_sesion(usuario_seleccionado, rol="OPERADOR"):
 
 def procesar_login_formulario():
     """Valida usuario y contraseña. Solo detona INICIO si las credenciales son válidas"""
+    ocultar_teclado_nativo()
     usuario_val = option_usuario.get()
     pass_val = entry_pass.get()
     
@@ -3013,6 +3054,7 @@ def procesar_login_formulario():
 
 def cerrar_sesion():
     global temporizador_sesion_id, _top_dialogo_jig
+    ocultar_teclado_nativo()
     if temporizador_sesion_id:
         ventana.after_cancel(temporizador_sesion_id)
         temporizador_sesion_id = None
@@ -3035,11 +3077,13 @@ def cerrar_sesion():
     lbl_estado.configure(text="Sesión cerrada. Esperando autenticación...", text_color=TEXT_MUTED)
 
 def ir_a_panel_admin():
+    ocultar_teclado_nativo()
     frame_operador.pack_forget()
     frame_admin.pack(fill="both", expand=True)
     lbl_estado.configure(text="Módulo de Administración abierto (Recetas, Exportar Excel, Usuarios).", text_color=COLOR_KOSTAL_NAVY)
 
 def volver_a_panel_operador():
+    ocultar_teclado_nativo()
     frame_admin.pack_forget()
     frame_operador.pack(fill="both", expand=True)
     lbl_estado.configure(text="Retorno a Panel de Operador.", text_color=COLOR_OK)
@@ -3100,11 +3144,129 @@ ventana.focus_force()
 ventana.bind("<F11>", lambda e: alternar_pantalla_completa())
 ventana.bind("<Escape>", lambda e: ventana.attributes("-fullscreen", False))
 
+# Detección táctil global: al tocar cualquier área libre que NO sea entrada de texto, ocultar teclado
+def _al_tocar_pantalla(event):
+    try:
+        w = event.widget
+        clase = w.winfo_class()
+        if clase in ("Entry", "TEntry", "Text"):
+            return
+        ocultar_teclado_nativo()
+    except Exception:
+        pass
+
+ventana.bind_all("<Button-1>", _al_tocar_pantalla, add="+")
+
 img_logo_kostal_login = cargar_imagen("LogoKostal.webp", 290, 60)
 img_logo_baluarte_login = cargar_imagen("LOGO_BALUARTE.png", 220, 52)
 img_logo_kostal_hdr = cargar_imagen("LogoKostal.webp", 150, 30)
 img_logo_baluarte_hdr = cargar_imagen("LOGO_BALUARTE.png", 145, 36)
 img_logo_baluarte_panel = cargar_imagen("LOGO_BALUARTE.png", 270, 68)
+
+# ------------------------------------------------------------------------------
+# 5.0. PANTALLA DE CARGA INDUSTRIAL (SPLASH SCREEN KOSTAL)
+# ------------------------------------------------------------------------------
+frame_splash = ctk.CTkFrame(ventana, fg_color="#090E17", corner_radius=0)
+try:
+    frame_splash.configure(cursor="none")
+except Exception:
+    pass
+frame_splash.pack(fill="both", expand=True)
+
+card_splash = ctk.CTkFrame(
+    frame_splash,
+    fg_color="#111827",
+    corner_radius=20,
+    border_width=1,
+    border_color="#1E293B",
+    width=720,
+    height=460
+)
+card_splash.place(relx=0.5, rely=0.5, anchor="center")
+
+f_sp_inner = ctk.CTkFrame(card_splash, fg_color="transparent")
+f_sp_inner.place(relx=0.5, rely=0.5, anchor="center")
+
+if img_logo_kostal_login:
+    ctk.CTkLabel(f_sp_inner, image=img_logo_kostal_login, text="").pack(pady=(0, 6))
+else:
+    ctk.CTkLabel(f_sp_inner, text="KOSTAL", font=(FONT_MAIN, 32, "bold"), text_color="#38BDF8").pack(pady=(0, 6))
+
+ctk.CTkLabel(
+    f_sp_inner,
+    text="SMC — ESTACIÓN DE INSERCIÓN Y TAMPOGRAFÍA",
+    font=(FONT_MAIN, 16, "bold"),
+    text_color="#F8FAFC"
+).pack(pady=(4, 2))
+
+ctk.CTkLabel(
+    f_sp_inner,
+    text="KOSTAL AUTOMOTIVE ELECTRICAL SYSTEMS | BALUARTE AI",
+    font=(FONT_MAIN, 11),
+    text_color="#94A3B8"
+).pack(pady=(0, 22))
+
+progress_splash = ctk.CTkProgressBar(
+    f_sp_inner,
+    width=520,
+    height=12,
+    corner_radius=6,
+    fg_color="#1E293B",
+    progress_color="#0284C7"
+)
+progress_splash.set(0.0)
+progress_splash.pack(pady=(8, 12))
+
+f_sp_info = ctk.CTkFrame(f_sp_inner, fg_color="transparent", width=520)
+f_sp_info.pack(fill="x", pady=(0, 8))
+
+lbl_splash_status = ctk.CTkLabel(
+    f_sp_info,
+    text="Iniciando subsistemas HMI...",
+    font=(FONT_MAIN, 11, "bold"),
+    text_color="#38BDF8"
+)
+lbl_splash_status.pack(side="left")
+
+lbl_splash_pct = ctk.CTkLabel(
+    f_sp_info,
+    text="0%",
+    font=(FONT_MAIN, 11, "bold"),
+    text_color="#94A3B8"
+)
+lbl_splash_pct.pack(side="right")
+
+ctk.CTkLabel(
+    f_sp_inner,
+    text="VERSIÓN INDUSTRIAL 1.0.4 • 1920x1080 TOUCH OPTIMIZED",
+    font=(FONT_MAIN, 9),
+    text_color="#475569"
+).pack(pady=(16, 0))
+
+def _animar_splash_progreso(paso=0):
+    pasos = [
+        (0.20, "Iniciando subsistemas HMI y variables de memoria...", "20%"),
+        (0.50, "Comprobando enlace de comunicaciones OPC UA (192.168.1.69)...", "50%"),
+        (0.75, "Cargando recetas de producción y parámetros de Jig...", "75%"),
+        (0.90, "Configurando entorno de seguridad y permisos táctiles...", "90%"),
+        (1.00, "¡Sistema Listo! Entrando al sistema...", "100%")
+    ]
+    if paso < len(pasos):
+        val, texto, pct = pasos[paso]
+        progress_splash.set(val)
+        lbl_splash_status.configure(text=texto)
+        lbl_splash_pct.configure(text=pct)
+        ventana.after(220, lambda: _animar_splash_progreso(paso + 1))
+    else:
+        def _mostrar_login():
+            try:
+                frame_splash.pack_forget()
+                frame_login.pack(fill="both", expand=True)
+            except Exception:
+                pass
+        ventana.after(180, _mostrar_login)
+
+ventana.after(50, lambda: _animar_splash_progreso(0))
 
 # ------------------------------------------------------------------------------
 # 5.1. PANTALLA 1: LOGIN LIMPIO CON VER/OCULTAR CONTRASEÑA
@@ -3114,9 +3276,8 @@ try:
     frame_login.configure(cursor="none")
 except Exception:
     pass
-frame_login.pack(fill="both", expand=True)
 
-# Barra superior con botones de control de ventana (Minimizar / Pantalla) en Login
+# Barra superior con botones de control de ventana y teclado en Login
 f_login_top_bar = ctk.CTkFrame(frame_login, fg_color="transparent", height=40)
 f_login_top_bar.pack(fill="x", side="top", padx=16, pady=12)
 
@@ -3146,7 +3307,21 @@ btn_login_min = ctk.CTkButton(
     height=30,
     command=minimizar_ventana
 )
-btn_login_min.pack(side="right")
+btn_login_min.pack(side="right", padx=(6, 0))
+
+btn_login_kb = ctk.CTkButton(
+    f_login_top_bar,
+    text="⌨ Teclado",
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color="#334155",
+    hover_color="#475569",
+    text_color="#FFFFFF",
+    corner_radius=6,
+    width=90,
+    height=30,
+    command=alternar_teclado_tactil
+)
+btn_login_kb.pack(side="right")
 
 card_login = ctk.CTkFrame(
     frame_login, 
@@ -3699,6 +3874,20 @@ btn_logout_top = ctk.CTkButton(
     command=cerrar_sesion
 )
 btn_logout_top.pack(side="left", padx=(4, 6), pady=8)
+
+btn_kb_top = ctk.CTkButton(
+    hdr_right,
+    text="⌨",
+    font=(FONT_MAIN, 13, "bold"),
+    fg_color="#F1F5F9",
+    hover_color="#E2E8F0",
+    text_color=COLOR_KOSTAL_NAVY,
+    corner_radius=6,
+    width=32,
+    height=28,
+    command=alternar_teclado_tactil
+)
+btn_kb_top.pack(side="left", padx=(0, 4), pady=8)
 
 btn_min_top = ctk.CTkButton(
     hdr_right,
@@ -4693,6 +4882,20 @@ lbl_adm_time.pack(anchor="e")
 lbl_adm_date = ctk.CTkLabel(f_adm_clock, text="24/09/2026", font=(FONT_MONO, 10), text_color=TEXT_MUTED)
 lbl_adm_date.pack(anchor="e")
 
+btn_adm_kb = ctk.CTkButton(
+    f_adm_hdr_right,
+    text="⌨ Teclado",
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color="#F1F5F9",
+    hover_color="#E2E8F0",
+    text_color=COLOR_KOSTAL_NAVY,
+    corner_radius=6,
+    width=85,
+    height=30,
+    command=alternar_teclado_tactil
+)
+btn_adm_kb.pack(side="left", padx=(4, 4))
+
 btn_adm_min = ctk.CTkButton(
     f_adm_hdr_right,
     text="🗕 Minimizar",
@@ -4705,7 +4908,7 @@ btn_adm_min = ctk.CTkButton(
     height=30,
     command=minimizar_ventana
 )
-btn_adm_min.pack(side="left", padx=(4, 4))
+btn_adm_min.pack(side="left", padx=(0, 4))
 
 btn_adm_fs = ctk.CTkButton(
     f_adm_hdr_right,
@@ -5806,6 +6009,20 @@ lbl_estado = ctk.CTkLabel(
     anchor="w"
 )
 lbl_estado.pack(side="left", padx=16, fill="x", expand=True)
+
+btn_sb_kb = ctk.CTkButton(
+    status_bar,
+    text="⌨ Teclado",
+    font=(FONT_MAIN, 9, "bold"),
+    fg_color="#1E293B",
+    hover_color="#334155",
+    text_color="#E2E8F0",
+    corner_radius=4,
+    width=80,
+    height=24,
+    command=alternar_teclado_tactil
+)
+btn_sb_kb.pack(side="right", padx=4, pady=4)
 
 btn_sb_min = ctk.CTkButton(
     status_bar,
