@@ -251,15 +251,15 @@ FONT_MAIN           = "Ubuntu" if sys.platform.startswith("linux") else "Segoe U
 FONT_MONO           = "Ubuntu Mono" if sys.platform.startswith("linux") else "Consolas"
 
 # ==============================================================================
-# LÍMITES FÍSICOS DE COORDENADAS (Eje X: 0.0 a 95.0 mm | Eje Y: 0.0 a 200.0 mm)
+# LÍMITES FÍSICOS DE COORDENADAS (Eje X: 0.0 a 85.0 mm | Eje Y: 0.0 a 200.0 mm)
 # ==============================================================================
 COORD_MIN = 0.0
-COORD_X_MAX = 95.0   # Limitación estricta en el eje X solicitada por el usuario (95.0 mm)
+COORD_X_MAX = 85.0   # Limitación estricta en el eje X solicitada por el usuario (85.0 mm)
 COORD_Y_MAX = 200.0
 COORD_MAX = 200.0
 
 def limitar_coord(valor, eje=None):
-    """Limita cualquier coordenada: eje X hasta 95.0 mm máx, eje Y hasta 200.0 mm máx"""
+    """Limita cualquier coordenada: eje X hasta 85.0 mm máx, eje Y hasta 200.0 mm máx"""
     try:
         val_f = float(valor)
         if eje in ("X", "x"):
@@ -271,7 +271,7 @@ def limitar_coord(valor, eje=None):
         return COORD_MIN
 
 def limitar_coord_x(valor):
-    """Limita estrictamente la coordenada X entre 0.0 y 95.0 mm"""
+    """Limita estrictamente la coordenada X entre 0.0 y 85.0 mm"""
     return limitar_coord(valor, "X")
 
 def limitar_coord_y(valor):
@@ -616,7 +616,7 @@ def actualizar_coordenadas_matriz():
     dx = abs(matriz_delta_x)
     dy = abs(matriz_delta_y)
 
-    # Determinar dirección viable para X dentro del rango [0.0, 95.0] mm
+    # Determinar dirección viable para X dentro del rango [0.0, 85.0] mm
     recorrido_x = (matriz_cols - 1) * dx
     if (x0 - recorrido_x) < 0.0 and (x0 + recorrido_x) <= COORD_X_MAX:
         dir_x = 1.0
@@ -2054,7 +2054,7 @@ def guardar_posicion_como_home():
         lbl_estado.configure(text="✗ Error numérico al guardar Set Home.", text_color=COLOR_NOK)
 
 def guardar_posicion_como_cero():
-    """Guarda la posición actual de la máquina como CERO permanente (X: 0 a 95 mm | Y: 0 a 200 mm)"""
+    """Guarda la posición actual de la máquina como CERO permanente (X: 0 a 85 mm | Y: 0 a 200 mm)"""
     global cero_guardado_x, cero_guardado_y, cero_ha_sido_seteado
     try:
         if plc_conectado:
@@ -2343,7 +2343,7 @@ def alternar_manual():
         lbl_estado.configure(text=f"✗ Error en modo: {e}", text_color=COLOR_NOK)
 
 def enviar_datos():
-    """Valida y limita estrictamente las coordenadas (X: 0.0 a 95.0 mm | Y: 0.0 a 200.0 mm)"""
+    """Valida y limita estrictamente las coordenadas (X: 0.0 a 85.0 mm | Y: 0.0 a 200.0 mm)"""
     try:
         val_x = limitar_coord_x(caja_pos_x.get())
         val_y = limitar_coord_y(caja_pos_y.get())
@@ -2419,7 +2419,7 @@ def mover_cruzeta(eje, direccion):
         dir_efectiva = -direccion
             
         if eje == 'X':
-            # Sumar el paso de la cruzeta al valor donde YA ESTABA ubicado (limitado a 95.0 mm máx)
+            # Sumar el paso de la cruzeta al valor donde YA ESTABA ubicado (limitado a 85.0 mm máx)
             nuevo_x = limitar_coord_x(ubicacion_x_actual + (paso * dir_efectiva))
             nuevo_y = ubicacion_y_actual
         elif eje == 'Y':
