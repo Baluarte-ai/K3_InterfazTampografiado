@@ -1641,8 +1641,15 @@ def activar_nueva_posicion(duracion_ms=500):
 # ==============================================================================
 # ACTIVACIÓN MANUAL DE TAMPOGRAFÍA (MARCA S.tampo / S_TAMPO EN PLC)
 # ==============================================================================
+_tampo_en_ejecucion = False
+
 def activar_tampo_manual():
-    """Activa la marca S.tampo en el PLC WAGO. Solo permitido en Modo Manual."""
+    """
+    Activa la marca S.tampo en el PLC WAGO durante 2.0 segundos exactos (True).
+    Al concluir los 2.0 segundos, se desactiva (pasa a False) y el botón se desajusta/restaura.
+    Solo permitido en Modo Manual.
+    """
+    global _tampo_en_ejecucion
     if not estado_manual:
         lbl_estado.configure(
             text="⚠️ 'Activar Tampo' solo está disponible en MODO MANUAL.",
@@ -1655,21 +1662,84 @@ def activar_tampo_manual():
             "Manual Tampo triggering is only allowed in MANUAL MODE.\nPlease switch the mode selector to MANUAL first."
         )
         return
-    
-    # Enviar pulso a la marca S.tampo / S_TAMPO y TAMPO
-    pulso_ok = False
+
+    if _tampo_en_ejecucion:
+        return
+    _tampo_en_ejecucion = True
+
+    # 1. Poner S_TAMPO y TAMPO en True en el PLC
     for tag in ["S_TAMPO", "TAMPO"]:
         if tag in nodos:
             try:
-                enviar_pulso(tag, duracion_ms=500)
-                pulso_ok = True
+                if plc_conectado:
+                    nodos[tag].set_value(ua.Variant(True, ua.VariantType.Boolean))
+                else:
+                    nodos[tag].set_value(True)
             except Exception:
                 pass
-    if pulso_ok:
+
+    # 2. Feedback visual en el botón durante los 2 segundos
+    if 'btn_activar_tampo' in globals():
+        try:
+            btn_activar_tampo.configure(
+                text="⏳ TAMPO ACTIVO (2s)" if idioma_actual == "ES" else "⏳ PAD ACTIVE (2s)",
+                fg_color="#D97706",
+                hover_color="#B45309",
+                text_color="white",
+                state="disabled"
+            )
+        except Exception:
+            pass
+
+    lbl_estado.configure(
+        text="⚡ Tampo activado: ciclo de 2.0 segundos en ejecución..." if idioma_actual == "ES" else "⚡ Pad activated: 2.0 second cycle running...",
+        text_color=COLOR_WARN
+    )
+
+    # Actualizar texto a 1s cuando haya transcurrido 1 segundo
+    def _actualizar_segundo():
+        if _tampo_en_ejecucion and 'btn_activar_tampo' in globals():
+            try:
+                btn_activar_tampo.configure(
+                    text="⏳ TAMPO ACTIVO (1s)" if idioma_actual == "ES" else "⏳ PAD ACTIVE (1s)"
+                )
+            except Exception:
+                pass
+
+    ventana.after(1000, _actualizar_segundo)
+
+    # 3. Al concluir los 2000 ms, desactivar en el PLC (poner en False) y restaurar botón
+    def _desactivar_tampo():
+        global _tampo_en_ejecucion
+        for tag in ["S_TAMPO", "TAMPO"]:
+            if tag in nodos:
+                try:
+                    if plc_conectado:
+                        nodos[tag].set_value(ua.Variant(False, ua.VariantType.Boolean))
+                    else:
+                        nodos[tag].set_value(False)
+                except Exception:
+                    pass
+
+        _tampo_en_ejecucion = False
+        if 'btn_activar_tampo' in globals():
+            try:
+                btn_activar_tampo.configure(
+                    text=DICCIONARIO_IDIOMAS[idioma_actual]["activar_tampo"],
+                    fg_color="#FFFFFF",
+                    hover_color="#F1F5F9",
+                    text_color=COLOR_KOSTAL_ACCENT,
+                    state="normal"
+                )
+            except Exception:
+                pass
+
         lbl_estado.configure(
-            text="✓ Pulso emitido a marca S.tampo del PLC (Modo Manual)" if idioma_actual == "ES" else "✓ Pulse sent to PLC S.tampo marker (Manual Mode)",
+            text="✓ Tampo completó ciclo de 2 segundos y se desactivó." if idioma_actual == "ES" else "✓ Pad completed 2-second cycle and turned off.",
             text_color=COLOR_OK
         )
+
+    ventana.after(2000, _desactivar_tampo)
 
 # ==============================================================================
 # GESTIÓN Y CAMBIO DE IDIOMA DINÁMICO (ESPAÑOL <-> INGLÉS)
