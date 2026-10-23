@@ -4804,10 +4804,31 @@ def alternar_pestana_jog(event=None):
             card_jog._header_title.configure(text=DICCIONARIO_IDIOMAS[idioma_actual]["op_jog"])
         if hasattr(card_jog, '_header_frame'):
             card_jog._header_frame.configure(fg_color="#E2E8F0")
+
+        # Escalar los mandos de control (INICIO, RESET, PARO) para llenar el espacio restante
+        try:
+            if 'card_mandos_der' in globals():
+                card_mandos_der.pack_configure(fill="both", expand=True, pady=(6, 0))
+            if 'f_mandos_der_b' in globals():
+                f_mandos_der_b.pack_configure(fill="both", expand=True, padx=12, pady=12)
+            if 'f_ir_row' in globals():
+                f_ir_row.pack_configure(fill="both", expand=True, pady=(0, 10))
+            if 'btn_inicio' in globals():
+                btn_inicio.pack_configure(side="left", fill="both", expand=True, padx=(0, 5))
+                btn_inicio.configure(font=(FONT_MAIN, 20, "bold"), height=90)
+            if 'btn_reset' in globals():
+                btn_reset.pack_configure(side="right", fill="both", expand=True, padx=(5, 0))
+                btn_reset.configure(font=(FONT_MAIN, 20, "bold"), height=90)
+            if 'btn_stop' in globals():
+                btn_stop.pack_configure(fill="both", expand=True, pady=(4, 0))
+                btn_stop.configure(font=(FONT_MAIN, 24, "bold"), height=110)
+        except Exception as err:
+            print(f"Error escalando mandos: {err}")
+
     else:
         # Desplegar toda la sección JOG hacia abajo de forma amplia
         card_jog.pack_configure(fill="both", expand=True)
-        f_jog_b.pack(fill="both", expand=True, padx=12, pady=6)
+        f_jog_b.pack(fill="both", expand=True, padx=10, pady=6)
         if btn_toggle_jog:
             btn_toggle_jog.configure(
                 text="▲ Plegar" if idioma_actual == "ES" else "▲ Fold",
@@ -4819,6 +4840,26 @@ def alternar_pestana_jog(event=None):
             card_jog._header_title.configure(text=DICCIONARIO_IDIOMAS[idioma_actual]["op_jog"])
         if hasattr(card_jog, '_header_frame'):
             card_jog._header_frame.configure(fg_color="#F1F5F9")
+
+        # Ajustar mandos de control a tamaño compacto para dar prioridad al JOG
+        try:
+            if 'card_mandos_der' in globals():
+                card_mandos_der.pack_configure(fill="x", expand=False, pady=(4, 0))
+            if 'f_mandos_der_b' in globals():
+                f_mandos_der_b.pack_configure(fill="x", expand=False, padx=8, pady=6)
+            if 'f_ir_row' in globals():
+                f_ir_row.pack_configure(fill="x", expand=False, pady=(0, 4))
+            if 'btn_inicio' in globals():
+                btn_inicio.pack_configure(side="left", fill="x", expand=True, padx=(0, 3))
+                btn_inicio.configure(font=(FONT_MAIN, 13, "bold"), height=42)
+            if 'btn_reset' in globals():
+                btn_reset.pack_configure(side="right", fill="x", expand=True, padx=(3, 0))
+                btn_reset.configure(font=(FONT_MAIN, 13, "bold"), height=42)
+            if 'btn_stop' in globals():
+                btn_stop.pack_configure(fill="x", expand=False, pady=(2, 0))
+                btn_stop.configure(font=(FONT_MAIN, 14, "bold"), height=46)
+        except Exception as err:
+            print(f"Error contrayendo mandos: {err}")
 
 def _widget_btn_toggle_jog(parent_hdr):
     global btn_toggle_jog
