@@ -251,18 +251,32 @@ FONT_MAIN           = "Ubuntu" if sys.platform.startswith("linux") else "Segoe U
 FONT_MONO           = "Ubuntu Mono" if sys.platform.startswith("linux") else "Consolas"
 
 # ==============================================================================
-# LÍMITES FÍSICOS DE COORDENADAS (0.0 mm a 200.0 mm)
+# LÍMITES FÍSICOS DE COORDENADAS (Eje X: 0.0 a 95.0 mm | Eje Y: 0.0 a 200.0 mm)
 # ==============================================================================
 COORD_MIN = 0.0
+COORD_X_MAX = 95.0   # Limitación estricta en el eje X solicitada por el usuario (95.0 mm)
+COORD_Y_MAX = 200.0
 COORD_MAX = 200.0
 
-def limitar_coord(valor):
-    """Limita cualquier coordenada estrictamente entre 0.0 y 200.0 mm"""
+def limitar_coord(valor, eje=None):
+    """Limita cualquier coordenada: eje X hasta 95.0 mm máx, eje Y hasta 200.0 mm máx"""
     try:
         val_f = float(valor)
+        if eje in ("X", "x"):
+            return max(COORD_MIN, min(COORD_X_MAX, val_f))
+        elif eje in ("Y", "y"):
+            return max(COORD_MIN, min(COORD_Y_MAX, val_f))
         return max(COORD_MIN, min(COORD_MAX, val_f))
     except (ValueError, TypeError):
         return COORD_MIN
+
+def limitar_coord_x(valor):
+    """Limita estrictamente la coordenada X entre 0.0 y 95.0 mm"""
+    return limitar_coord(valor, "X")
+
+def limitar_coord_y(valor):
+    """Limita estrictamente la coordenada Y entre 0.0 y 200.0 mm"""
+    return limitar_coord(valor, "Y")
 
 # ==============================================================================
 # 1. PERSISTENCIA DE CONFIGURACIÓN Y SET 0 (MEMORIA PERMANENTE)
@@ -392,7 +406,7 @@ REGISTROS_PRODUCCION = [
 # 2. CONEXIÓN Y DEFINICIÓN DE NODOS OPC UA (PRESERVANDO 100% FUNCIONALIDAD ORIGINAL)
 # ==============================================================================
 url = config_actual["ajustes_globales"].get("plc_url", "opc.tcp://192.168.1.69:4840")
-cliente = Client(url, timeout=1.5)
+cliente = None
 plc_conectado = False
 
 class MockNode:
@@ -407,69 +421,69 @@ class MockNode:
         except Exception:
             self.valor = valor
 
-try:
-    cliente.connect()
-    plc_conectado = True
-    print("Conexión estable con PLC WAGO (192.168.1.69:4840).")
-except Exception as e:
-    print(f"Aviso de conexión con PLC: {e}")
-    print("Iniciando en MODO SIMULACIÓN HMI KOSTAL (controles y lógica activos).")
-    plc_conectado = False
-
 ruta_prg = "ns=4;s=|var|WAGO 750-8212 PFC200 G2 2ETH RS.Application.PLC_PRG."
 ruta_io = "ns=4;s=|var|WAGO 750-8212 PFC200 G2 2ETH RS.Application.IoConfig_Globals_Mapping."
 
-if plc_conectado:
-    nodos = {
-        # Control y Modos
-        "INICIO": cliente.get_node(ruta_prg + "INICIO"),
-        "HOME": cliente.get_node(ruta_prg + "HOME"),
-        "STOP": cliente.get_node(ruta_prg + "STOP"),
-        "RESET": cliente.get_node(ruta_prg + "RESET"),
-        "PINTAR": cliente.get_node(ruta_prg + "PINTAR"),
-        "CRUZETA": cliente.get_node(ruta_prg + "CRUZETA"), 
-        "MANUAL": cliente.get_node(ruta_prg + "MANUAL"),
-        "PINTADO": cliente.get_node(ruta_prg + "PINTADO"),
-        "NUEVA_POS": cliente.get_node(ruta_prg + "NUEVA_POS"),
-        "NUEVA_POSICION": cliente.get_node(ruta_prg + "NUEVA_POSICION"),
-        
-        # Coordenadas y Memorias (Numéricos DINT)
-        "POS_X": cliente.get_node(ruta_prg + "POS_X"),
-        "POS_Y": cliente.get_node(ruta_prg + "POS_Y"),
-        "HOME_X": cliente.get_node(ruta_prg + "HOME_X"),
-        "HOME_Y": cliente.get_node(ruta_prg + "HOME_Y"),
-        
-        # Velocidades
-        "VELOCIDAD_X": cliente.get_node(ruta_prg + "VEL_X"),
-        "VELOCIDAD_Y": cliente.get_node(ruta_prg + "VEL_Y"),
-        
-        # Estados del PLC
-        "LISTO": cliente.get_node(ruta_prg + "LISTO"),
-        "NO_LISTO": cliente.get_node(ruta_prg + "NO_LISTO"),
-        "M_ENE": cliente.get_node(ruta_prg + "M_ENE"), 
-        "M_SET": cliente.get_node(ruta_prg + "M_SET"), 
-        
-        # Hardware (IoConfig)
-        "ALARM_X": cliente.get_node(ruta_io + "ALARM_X"),
-        "ALARM_Y": cliente.get_node(ruta_io + "ALARM_Y"),
-        "PE": cliente.get_node(ruta_io + "PE"),
-        "TAMPO": cliente.get_node(ruta_io + "TAMPO"),
-        "SENSOR_X": cliente.get_node(ruta_io + "SENSOR_X"),
-        "SENSOR_Y": cliente.get_node(ruta_io + "SENSOR_Y"),
-        "S_TAMPO": cliente.get_node(ruta_prg + "S_TAMPO")
-    }
-    # Respaldo en caso de que S.tampo esté declarado con punto en CODESYS
-    try:
-        nodos["S_TAMPO"] = cliente.get_node(ruta_prg + "S_TAMPO")
-    except Exception:
+nodos = {}
+
+def vincular_nodos_plc():
+    """Vincula los nodos al PLC real si está conectado o a MockNodes si está en simulación"""
+    global nodos, plc_conectado
+    if plc_conectado and cliente:
         try:
-            nodos["S_TAMPO"] = cliente.get_node(ruta_prg + "S.tampo")
-        except Exception:
+            nodos = {
+                # Control y Modos
+                "INICIO": cliente.get_node(ruta_prg + "INICIO"),
+                "HOME": cliente.get_node(ruta_prg + "HOME"),
+                "STOP": cliente.get_node(ruta_prg + "STOP"),
+                "RESET": cliente.get_node(ruta_prg + "RESET"),
+                "PINTAR": cliente.get_node(ruta_prg + "PINTAR"),
+                "CRUZETA": cliente.get_node(ruta_prg + "CRUZETA"), 
+                "MANUAL": cliente.get_node(ruta_prg + "MANUAL"),
+                "PINTADO": cliente.get_node(ruta_prg + "PINTADO"),
+                "NUEVA_POS": cliente.get_node(ruta_prg + "NUEVA_POS"),
+                "NUEVA_POSICION": cliente.get_node(ruta_prg + "NUEVA_POSICION"),
+                
+                # Coordenadas y Memorias (Numéricos DINT)
+                "POS_X": cliente.get_node(ruta_prg + "POS_X"),
+                "POS_Y": cliente.get_node(ruta_prg + "POS_Y"),
+                "HOME_X": cliente.get_node(ruta_prg + "HOME_X"),
+                "HOME_Y": cliente.get_node(ruta_prg + "HOME_Y"),
+                
+                # Velocidades
+                "VELOCIDAD_X": cliente.get_node(ruta_prg + "VEL_X"),
+                "VELOCIDAD_Y": cliente.get_node(ruta_prg + "VEL_Y"),
+                
+                # Estados del PLC
+                "LISTO": cliente.get_node(ruta_prg + "LISTO"),
+                "NO_LISTO": cliente.get_node(ruta_prg + "NO_LISTO"),
+                "M_ENE": cliente.get_node(ruta_prg + "M_ENE"), 
+                "M_SET": cliente.get_node(ruta_prg + "M_SET"), 
+                
+                # Hardware (IoConfig)
+                "ALARM_X": cliente.get_node(ruta_io + "ALARM_X"),
+                "ALARM_Y": cliente.get_node(ruta_io + "ALARM_Y"),
+                "PE": cliente.get_node(ruta_io + "PE"),
+                "TAMPO": cliente.get_node(ruta_io + "TAMPO"),
+                "SENSOR_X": cliente.get_node(ruta_io + "SENSOR_X"),
+                "SENSOR_Y": cliente.get_node(ruta_io + "SENSOR_Y"),
+                "S_TAMPO": cliente.get_node(ruta_prg + "S_TAMPO")
+            }
             try:
-                nodos["S_TAMPO"] = cliente.get_node(ruta_io + "S_TAMPO")
+                nodos["S_TAMPO"] = cliente.get_node(ruta_prg + "S_TAMPO")
             except Exception:
-                nodos["S_TAMPO"] = nodos.get("TAMPO", MockNode(False))
-else:
+                try:
+                    nodos["S_TAMPO"] = cliente.get_node(ruta_prg + "S.tampo")
+                except Exception:
+                    try:
+                        nodos["S_TAMPO"] = cliente.get_node(ruta_io + "S_TAMPO")
+                    except Exception:
+                        nodos["S_TAMPO"] = nodos.get("TAMPO", MockNode(False))
+            return True
+        except Exception as e:
+            print(f"Error vinculando nodos reales: {e}")
+            plc_conectado = False
+
     nodos = {
         "INICIO": MockNode(False),
         "HOME": MockNode(False),
@@ -499,6 +513,31 @@ else:
         "SENSOR_Y": MockNode(False),
         "S_TAMPO": MockNode(False)
     }
+    return False
+
+def intentar_conectar_plc(timeout_seg=2.5):
+    """Intenta conectar al PLC WAGO y enlazar nodos de telemetría y control"""
+    global cliente, plc_conectado
+    try:
+        if cliente:
+            try:
+                cliente.disconnect()
+            except Exception:
+                pass
+        cliente = Client(url, timeout=timeout_seg)
+        cliente.connect()
+        plc_conectado = True
+        vincular_nodos_plc()
+        print("Conexión exitosa con PLC WAGO (192.168.1.69:4840).")
+        return True
+    except Exception as e:
+        print(f"Aviso de conexión con PLC: {e}")
+        plc_conectado = False
+        vincular_nodos_plc()
+        return False
+
+# Inicializar nodos en simulación por defecto hasta que la pantalla de carga pruebe la conexión
+vincular_nodos_plc()
 
 # Estados visuales e Internos
 estado_pintar = False
@@ -577,22 +616,22 @@ def actualizar_coordenadas_matriz():
     dx = abs(matriz_delta_x)
     dy = abs(matriz_delta_y)
 
-    # Determinar dirección viable para X dentro del rango [0.0, 200.0] mm
+    # Determinar dirección viable para X dentro del rango [0.0, 95.0] mm
     recorrido_x = (matriz_cols - 1) * dx
-    if (x0 - recorrido_x) < 0.0 and (x0 + recorrido_x) <= 200.0:
+    if (x0 - recorrido_x) < 0.0 and (x0 + recorrido_x) <= COORD_X_MAX:
         dir_x = 1.0
-    elif (x0 + recorrido_x) > 200.0 and (x0 - recorrido_x) >= 0.0:
+    elif (x0 + recorrido_x) > COORD_X_MAX and (x0 - recorrido_x) >= 0.0:
         dir_x = -1.0
-    elif x0 < 100.0:
+    elif x0 < (COORD_X_MAX / 2.0):
         dir_x = 1.0
     else:
         dir_x = -1.0
 
     # Determinar dirección viable para Y dentro del rango [0.0, 200.0] mm
     recorrido_y = (matriz_filas - 1) * dy
-    if (y0 - recorrido_y) < 0.0 and (y0 + recorrido_y) <= 200.0:
+    if (y0 - recorrido_y) < 0.0 and (y0 + recorrido_y) <= COORD_Y_MAX:
         dir_y = 1.0
-    elif (y0 + recorrido_y) > 200.0 and (y0 - recorrido_y) >= 0.0:
+    elif (y0 + recorrido_y) > COORD_Y_MAX and (y0 - recorrido_y) >= 0.0:
         dir_y = -1.0
     elif y0 < 100.0:
         dir_y = 1.0
@@ -601,8 +640,8 @@ def actualizar_coordenadas_matriz():
 
     for r in range(matriz_filas):
         for c in range(matriz_cols):
-            x = limitar_coord(x0 + dir_x * (c * dx))
-            y = limitar_coord(y0 + dir_y * (r * dy))
+            x = limitar_coord_x(x0 + dir_x * (c * dx))
+            y = limitar_coord_y(y0 + dir_y * (r * dy))
             matriz_coordenadas.append((round(x, 2), round(y, 2)))
 
 actualizar_coordenadas_matriz()
@@ -1997,8 +2036,8 @@ def ejecutar_reset_general():
 def guardar_posicion_como_home():
     global maquina_en_home
     try:
-        val_x = limitar_coord(caja_pos_x.get())
-        val_y = limitar_coord(caja_pos_y.get())
+        val_x = limitar_coord_x(caja_pos_x.get())
+        val_y = limitar_coord_y(caja_pos_y.get())
         caja_pos_x.delete(0, tk.END); caja_pos_x.insert(0, f"{val_x:.2f}")
         caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{val_y:.2f}")
         valor_x_mm = val_x * 100
@@ -2015,19 +2054,19 @@ def guardar_posicion_como_home():
         lbl_estado.configure(text="✗ Error numérico al guardar Set Home.", text_color=COLOR_NOK)
 
 def guardar_posicion_como_cero():
-    """Guarda la posición actual de la máquina como CERO permanente entre 0.0 y 200.0 mm"""
+    """Guarda la posición actual de la máquina como CERO permanente (X: 0 a 95 mm | Y: 0 a 200 mm)"""
     global cero_guardado_x, cero_guardado_y, cero_ha_sido_seteado
     try:
         if plc_conectado:
             try:
-                val_x = limitar_coord(nodos["POS_X"].get_value() / 100.0)
-                val_y = limitar_coord(nodos["POS_Y"].get_value() / 100.0)
+                val_x = limitar_coord_x(nodos["POS_X"].get_value() / 100.0)
+                val_y = limitar_coord_y(nodos["POS_Y"].get_value() / 100.0)
             except Exception:
-                val_x = limitar_coord(caja_pos_x.get())
-                val_y = limitar_coord(caja_pos_y.get())
+                val_x = limitar_coord_x(caja_pos_x.get())
+                val_y = limitar_coord_y(caja_pos_y.get())
         else:
-            val_x = limitar_coord(caja_pos_x.get())
-            val_y = limitar_coord(caja_pos_y.get())
+            val_x = limitar_coord_x(caja_pos_x.get())
+            val_y = limitar_coord_y(caja_pos_y.get())
             
         cero_guardado_x = val_x
         cero_guardado_y = val_y
@@ -2304,10 +2343,10 @@ def alternar_manual():
         lbl_estado.configure(text=f"✗ Error en modo: {e}", text_color=COLOR_NOK)
 
 def enviar_datos():
-    """Valida y limita estrictamente las coordenadas entre 0.0 y 200.0 mm"""
+    """Valida y limita estrictamente las coordenadas (X: 0.0 a 95.0 mm | Y: 0.0 a 200.0 mm)"""
     try:
-        val_x = limitar_coord(caja_pos_x.get())
-        val_y = limitar_coord(caja_pos_y.get())
+        val_x = limitar_coord_x(caja_pos_x.get())
+        val_y = limitar_coord_y(caja_pos_y.get())
         
         caja_pos_x.delete(0, tk.END)
         caja_pos_x.insert(0, f"{val_x:.2f}")
@@ -2367,26 +2406,26 @@ def mover_cruzeta(eje, direccion):
         # Leer la ubicación real donde la máquina YA ESTÁ UBICADA
         if plc_conectado:
             try:
-                ubicacion_x_actual = limitar_coord(nodos["POS_X"].get_value() / 100.0)
-                ubicacion_y_actual = limitar_coord(nodos["POS_Y"].get_value() / 100.0)
+                ubicacion_x_actual = limitar_coord_x(nodos["POS_X"].get_value() / 100.0)
+                ubicacion_y_actual = limitar_coord_y(nodos["POS_Y"].get_value() / 100.0)
             except Exception:
-                ubicacion_x_actual = limitar_coord(float(caja_pos_x.get()))
-                ubicacion_y_actual = limitar_coord(float(caja_pos_y.get()))
+                ubicacion_x_actual = limitar_coord_x(float(caja_pos_x.get()))
+                ubicacion_y_actual = limitar_coord_y(float(caja_pos_y.get()))
         else:
-            ubicacion_x_actual = limitar_coord(float(caja_pos_x.get()))
-            ubicacion_y_actual = limitar_coord(float(caja_pos_y.get()))
+            ubicacion_x_actual = limitar_coord_x(float(caja_pos_x.get()))
+            ubicacion_y_actual = limitar_coord_y(float(caja_pos_y.get()))
             
         # REQUERIMIENTO: Invertir el sentido que dan las crucetas para el eje X y eje Y
         dir_efectiva = -direccion
             
         if eje == 'X':
-            # Sumar el paso de la cruzeta al valor donde YA ESTABA ubicado (sentido invertido)
-            nuevo_x = limitar_coord(ubicacion_x_actual + (paso * dir_efectiva))
+            # Sumar el paso de la cruzeta al valor donde YA ESTABA ubicado (limitado a 95.0 mm máx)
+            nuevo_x = limitar_coord_x(ubicacion_x_actual + (paso * dir_efectiva))
             nuevo_y = ubicacion_y_actual
         elif eje == 'Y':
             nuevo_x = ubicacion_x_actual
-            # Sumar el paso de la cruzeta al valor donde YA ESTABA ubicado (sentido invertido)
-            nuevo_y = limitar_coord(ubicacion_y_actual + (paso * dir_efectiva))
+            # Sumar el paso de la cruzeta al valor donde YA ESTABA ubicado (limitado a 200.0 mm máx)
+            nuevo_y = limitar_coord_y(ubicacion_y_actual + (paso * dir_efectiva))
         else:
             return
             
@@ -3243,30 +3282,122 @@ ctk.CTkLabel(
     text_color="#475569"
 ).pack(pady=(16, 0))
 
-def _animar_splash_progreso(paso=0):
-    pasos = [
-        (0.20, "Iniciando subsistemas HMI y variables de memoria...", "20%"),
-        (0.50, "Comprobando enlace de comunicaciones OPC UA (192.168.1.69)...", "50%"),
-        (0.75, "Cargando recetas de producción y parámetros de Jig...", "75%"),
-        (0.90, "Configurando entorno de seguridad y permisos táctiles...", "90%"),
-        (1.00, "¡Sistema Listo! Entrando al sistema...", "100%")
-    ]
-    if paso < len(pasos):
-        val, texto, pct = pasos[paso]
-        progress_splash.set(val)
-        lbl_splash_status.configure(text=texto)
-        lbl_splash_pct.configure(text=pct)
-        ventana.after(220, lambda: _animar_splash_progreso(paso + 1))
-    else:
-        def _mostrar_login():
-            try:
-                frame_splash.pack_forget()
-                frame_login.pack(fill="both", expand=True)
-            except Exception:
-                pass
-        ventana.after(180, _mostrar_login)
+f_splash_actions = ctk.CTkFrame(f_sp_inner, fg_color="transparent")
 
-ventana.after(50, lambda: _animar_splash_progreso(0))
+def _iniciar_conexion_en_splash():
+    progress_splash.set(0.15)
+    lbl_splash_status.configure(text="Iniciando subsistemas HMI y registros de memoria...", text_color="#38BDF8")
+    lbl_splash_pct.configure(text="15%")
+    
+    def _paso_conectar():
+        progress_splash.set(0.40)
+        lbl_splash_status.configure(text="Intentando conectar con PLC WAGO (192.168.1.69:4840)...", text_color="#38BDF8")
+        lbl_splash_pct.configure(text="40%")
+        
+        res = [None]
+        def _thread_con():
+            res[0] = intentar_conectar_plc(timeout_seg=2.5)
+        
+        import threading
+        t = threading.Thread(target=_thread_con, daemon=True)
+        t.start()
+        
+        def _verificar_hilo(intentos=0):
+            if t.is_alive():
+                p_actual = min(0.68, 0.40 + (intentos * 0.025))
+                progress_splash.set(p_actual)
+                lbl_splash_pct.configure(text=f"{int(p_actual*100)}%")
+                ventana.after(140, lambda: _verificar_hilo(intentos + 1))
+            else:
+                if res[0] is True:
+                    progress_splash.configure(progress_color="#10B981")
+                    progress_splash.set(0.85)
+                    lbl_splash_status.configure(text="✓ Conexión establecida con PLC WAGO exitosamente.", text_color="#10B981")
+                    lbl_splash_pct.configure(text="85%")
+                    
+                    def _paso_final():
+                        progress_splash.set(1.0)
+                        lbl_splash_status.configure(text="¡Sistema Listo! Entrando al sistema...", text_color="#F8FAFC")
+                        lbl_splash_pct.configure(text="100%")
+                        ventana.after(350, _mostrar_login)
+                    ventana.after(350, _paso_final)
+                else:
+                    progress_splash.configure(progress_color="#F59E0B")
+                    lbl_splash_status.configure(
+                        text="⚠️ Sin comunicación con PLC WAGO (192.168.1.69:4840)",
+                        text_color="#F59E0B"
+                    )
+                    lbl_splash_pct.configure(text="PAUSA")
+                    _mostrar_opciones_sin_plc()
+                    
+        ventana.after(140, _verificar_hilo)
+        
+    ventana.after(300, _paso_conectar)
+
+def _mostrar_login():
+    try:
+        frame_splash.pack_forget()
+        frame_login.pack(fill="both", expand=True)
+    except Exception:
+        pass
+
+def _mostrar_opciones_sin_plc():
+    for child in f_splash_actions.winfo_children():
+        child.destroy()
+    f_splash_actions.pack(pady=(16, 0), fill="x")
+    
+    ctk.CTkLabel(
+        f_splash_actions,
+        text="El PLC no respondió en la red. Verifique cable Ethernet o seleccione cómo proceder:",
+        font=(FONT_MAIN, 11),
+        text_color="#CBD5E1"
+    ).pack(pady=(0, 10))
+    
+    f_sp_btns = ctk.CTkFrame(f_splash_actions, fg_color="transparent")
+    f_sp_btns.pack()
+    
+    btn_sp_reintentar = ctk.CTkButton(
+        f_sp_btns,
+        text="🔄 Reintentar Conexión al PLC",
+        font=(FONT_MAIN, 11, "bold"),
+        fg_color=COLOR_KOSTAL_NAVY,
+        hover_color=COLOR_KOSTAL_ACCENT,
+        text_color="white",
+        height=38,
+        width=210,
+        corner_radius=6,
+        command=_reintentar_desde_splash
+    )
+    btn_sp_reintentar.pack(side="left", padx=6)
+    
+    btn_sp_simulacion = ctk.CTkButton(
+        f_sp_btns,
+        text="⚡ Iniciar en Modo Simulación",
+        font=(FONT_MAIN, 11, "bold"),
+        fg_color="#334155",
+        hover_color="#475569",
+        text_color="white",
+        height=38,
+        width=210,
+        corner_radius=6,
+        command=_continuar_simulacion_desde_splash
+    )
+    btn_sp_simulacion.pack(side="left", padx=6)
+
+def _reintentar_desde_splash():
+    f_splash_actions.pack_forget()
+    progress_splash.configure(progress_color="#0284C7")
+    _iniciar_conexion_en_splash()
+
+def _continuar_simulacion_desde_splash():
+    f_splash_actions.pack_forget()
+    progress_splash.configure(progress_color="#0284C7")
+    progress_splash.set(1.0)
+    lbl_splash_status.configure(text="Iniciando en MODO SIMULACIÓN (controles activos)...", text_color="#38BDF8")
+    lbl_splash_pct.configure(text="100%")
+    ventana.after(350, _mostrar_login)
+
+ventana.after(50, _iniciar_conexion_en_splash)
 
 # ------------------------------------------------------------------------------
 # 5.1. PANTALLA 1: LOGIN LIMPIO CON VER/OCULTAR CONTRASEÑA
@@ -3804,7 +3935,91 @@ lbl_hdr_conn_status = ctk.CTkLabel(
     padx=7,
     pady=2
 )
-lbl_hdr_conn_status.pack(side="left", padx=(0, 10))
+lbl_hdr_conn_status.pack(side="left", padx=(0, 6))
+
+def calar_conexion_plc():
+    """Prueba la conexión real con el PLC WAGO y permite reconectar en caliente"""
+    def _tarea_test():
+        try:
+            btn_calar_plc.configure(text="⏳ Calando...", state="disabled")
+        except Exception:
+            pass
+        
+        exito = False
+        if plc_conectado and cliente:
+            try:
+                val = nodos["LISTO"].get_value()
+                exito = True
+            except Exception:
+                exito = False
+        
+        if not exito:
+            exito = intentar_conectar_plc(timeout_seg=2.0)
+            
+        def _actualizar_ui():
+            try:
+                btn_calar_plc.configure(state="normal")
+                if exito:
+                    lbl_hdr_conn_status.configure(
+                        text="● PLC ONLINE",
+                        fg_color="#ECFDF5",
+                        text_color="#065F46"
+                    )
+                    btn_calar_plc.configure(
+                        text="✓ PLC OK",
+                        fg_color="#059669",
+                        hover_color="#047857"
+                    )
+                    lbl_estado.configure(
+                        text="✓ Enlace con PLC WAGO (192.168.1.69:4840) activo y respondiendo.",
+                        text_color=COLOR_OK
+                    )
+                    ventana.after(2500, lambda: btn_calar_plc.configure(
+                        text="🔌 Calar PLC",
+                        fg_color="#0284C7",
+                        hover_color="#0369A1"
+                    ))
+                else:
+                    lbl_hdr_conn_status.configure(
+                        text="○ SIMULACIÓN",
+                        fg_color="#FFFBEB",
+                        text_color="#B45309"
+                    )
+                    btn_calar_plc.configure(
+                        text="✗ Sin PLC",
+                        fg_color="#DC2626",
+                        hover_color="#B91C1C"
+                    )
+                    lbl_estado.configure(
+                        text="✗ Sin respuesta de PLC WAGO (192.168.1.69:4840) — Modo Simulación.",
+                        text_color=COLOR_NOK
+                    )
+                    ventana.after(2500, lambda: btn_calar_plc.configure(
+                        text="🔌 Calar PLC",
+                        fg_color="#0284C7",
+                        hover_color="#0369A1"
+                    ))
+            except Exception:
+                pass
+                
+        ventana.after(10, _actualizar_ui)
+
+    import threading
+    threading.Thread(target=_tarea_test, daemon=True).start()
+
+btn_calar_plc = ctk.CTkButton(
+    hdr_mid,
+    text="🔌 Calar PLC",
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color="#0284C7",
+    hover_color="#0369A1",
+    text_color="#FFFFFF",
+    corner_radius=6,
+    height=28,
+    width=92,
+    command=calar_conexion_plc
+)
+btn_calar_plc.pack(side="left", padx=(0, 10), pady=8)
 
 # Bloque Derecho: Usuario, Rol, Idioma y Cerrar Sesión (Imagen 5)
 hdr_right = ctk.CTkFrame(header_hmi, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD, height=44)
