@@ -251,15 +251,15 @@ FONT_MAIN           = "Ubuntu" if sys.platform.startswith("linux") else "Segoe U
 FONT_MONO           = "Ubuntu Mono" if sys.platform.startswith("linux") else "Consolas"
 
 # ==============================================================================
-# LÍMITES FÍSICOS DE COORDENADAS (Eje X: 0.0 a 85.0 mm | Eje Y: 0.0 a 200.0 mm)
+# LÍMITES FÍSICOS DE COORDENADAS (Eje X: 0.0 a 88.0 mm | Eje Y: 0.0 a 200.0 mm)
 # ==============================================================================
 COORD_MIN = 0.0
-COORD_X_MAX = 85.0   # Limitación estricta en el eje X solicitada por el usuario (85.0 mm)
+COORD_X_MAX = 88.0   # Limitación estricta en el eje X solicitada por el usuario (88.0 mm máx)
 COORD_Y_MAX = 200.0
 COORD_MAX = 200.0
 
 def limitar_coord(valor, eje=None):
-    """Limita cualquier coordenada: eje X hasta 85.0 mm máx, eje Y hasta 200.0 mm máx"""
+    """Limita cualquier coordenada: eje X hasta 88.0 mm máx, eje Y hasta 200.0 mm máx"""
     try:
         val_f = float(valor)
         if eje in ("X", "x"):
@@ -271,7 +271,7 @@ def limitar_coord(valor, eje=None):
         return COORD_MIN
 
 def limitar_coord_x(valor):
-    """Limita estrictamente la coordenada X entre 0.0 y 85.0 mm"""
+    """Limita estrictamente la coordenada X entre 0.0 y 88.0 mm"""
     return limitar_coord(valor, "X")
 
 def limitar_coord_y(valor):
@@ -347,6 +347,7 @@ config_actual = {
     "cero_guardado_y": 0.0,
     "velocidad": 100,
     "paso_jog": 5.0,
+    "pasadas_tampo": 2,
     "receta_activa": "KSL-001 - Bisel Frontal",
     "recetas": list(DEFAULT_RECETAS),
     "usuarios": list(DEFAULT_USUARIOS),
@@ -594,15 +595,16 @@ ultimo_estado_sensor_y = False
 # ==============================================================================
 class StateCoord:
     """Contenedor en memoria de coordenadas del robot para mantener 100% compatibilidad"""
-    def __init__(self, val_init=0.0):
-        self.val = limitar_coord(val_init)
+    def __init__(self, val_init=0.0, eje="X"):
+        self.eje = eje
+        self.val = limitar_coord(val_init, eje=self.eje)
     def get(self):
         return f"{self.val:.2f}"
     def delete(self, first=0, last=None):
         pass
     def insert(self, idx, s):
         try:
-            self.val = limitar_coord(s)
+            self.val = limitar_coord(s, eje=self.eje)
             if 'lbl_jog_coord_x' in globals() and self is caja_pos_x:
                 lbl_jog_coord_x.configure(text=f"{self.val:.2f}")
             elif 'lbl_jog_coord_y' in globals() and self is caja_pos_y:
@@ -610,8 +612,8 @@ class StateCoord:
         except Exception:
             pass
 
-caja_pos_x = StateCoord(0.0)
-caja_pos_y = StateCoord(0.0)
+caja_pos_x = StateCoord(0.0, eje="X")
+caja_pos_y = StateCoord(0.0, eje="Y")
 
 # ==============================================================================
 # VARIABLES Y LÓGICA DE MATRIZ DINÁMICA (HASTA 5x5) Y ESPACIADO
@@ -624,6 +626,7 @@ matriz_delta_y = 30.0
 matriz_dist_diag = round((matriz_delta_x**2 + matriz_delta_y**2)**0.5, 2)
 matriz_coordenadas = []
 indice_matriz_actual = 0
+pasada_actual_pieza = 1  # 1 o 2 pasadas según selección de tampos
 ultimo_plc_rx_x = 0.0
 ultimo_plc_rx_y = 0.0
 ultimo_plc_rx_ok = False
@@ -649,7 +652,7 @@ def actualizar_coordenadas_matriz():
     dx = abs(matriz_delta_x)
     dy = abs(matriz_delta_y)
 
-    # Determinar dirección viable para X dentro del rango [0.0, 85.0] mm
+    # Determinar dirección viable para X dentro del rango [0.0, 88.0] mm
     recorrido_x = (matriz_cols - 1) * dx
     if (x0 - recorrido_x) < 0.0 and (x0 + recorrido_x) <= COORD_X_MAX:
         dir_x = 1.0
@@ -1555,7 +1558,7 @@ def resetear_variables_inicio(forzar_reseteo_referencias=False):
     """
     global estado_pintar, estado_stop, estado_manual, cero_ha_sido_seteado, maquina_en_home
     global indice_matriz_actual, ultimo_estado_pintado, ultimo_estado_sensor_y
-    global fixture_piezas_estado, segundos_sesion
+    global fixture_piezas_estado, segundos_sesion, pasada_actual_pieza
     
     # 1. Estados internos y contadores en 0
     estado_pintar = False
@@ -1565,6 +1568,7 @@ def resetear_variables_inicio(forzar_reseteo_referencias=False):
         cero_ha_sido_seteado = False
         maquina_en_home = False
     indice_matriz_actual = 0
+    pasada_actual_pieza = 1
     ultimo_estado_pintado = False
     ultimo_estado_sensor_y = False
     segundos_sesion = 0
@@ -2197,7 +2201,7 @@ def guardar_posicion_como_home():
         lbl_estado.configure(text="✗ Error numérico al guardar Set Home.", text_color=COLOR_NOK)
 
 def guardar_posicion_como_cero():
-    """Guarda la posición actual de la máquina como CERO permanente (X: 0 a 85 mm | Y: 0 a 200 mm)"""
+    """Guarda la posición actual de la máquina como CERO permanente (X: 0 a 88 mm | Y: 0 a 200 mm)"""
     global cero_guardado_x, cero_guardado_y, cero_ha_sido_seteado
     try:
         if plc_conectado:
@@ -2278,14 +2282,324 @@ def alternar_stop():
     except Exception as e:
         lbl_estado.configure(text=f"✗ Error al alternar PARO: {e}", text_color=COLOR_NOK)
 
+# ==============================================================================
+# GESTIÓN SEGURA DE PASO JOG Y CICLOS DE PASADAS DE TAMPOGRAFÍA
+# ==============================================================================
+_btns_paso_presets = {}
+btn_tampo_1 = None
+btn_tampo_2 = None
+lbl_pasada_badge = None
+
+def obtener_paso_jog():
+    """Obtiene el valor de paso JOG de forma segura y a prueba de fallos."""
+    try:
+        if 'caja_paso' in globals() and caja_paso:
+            txt = str(caja_paso.get()).strip().replace(",", ".")
+            if txt:
+                v = float(txt)
+                if 0.01 <= v <= 100.0:
+                    config_actual["paso_jog"] = v
+                    return v
+    except Exception:
+        pass
+    return float(config_actual.get("paso_jog", 5.0))
+
+def fijar_paso_jog(nuevo_paso):
+    """Fija un nuevo paso JOG numérico, actualiza la caja, la configuración y el estilo de botones."""
+    global config_actual
+    try:
+        val = max(0.05, min(100.0, float(nuevo_paso)))
+        config_actual["paso_jog"] = val
+        if 'caja_paso' in globals() and caja_paso:
+            caja_paso.delete(0, tk.END)
+            caja_paso.insert(0, f"{val:g}")
+        guardar_configuracion()
+        actualizar_botones_paso_preset(val)
+        if 'lbl_estado' in globals() and lbl_estado:
+            lbl_estado.configure(
+                text=f"✓ Paso JOG configurado en {val:g} mm.",
+                text_color=COLOR_OK
+            )
+    except Exception as err:
+        print(f"Error fijando paso JOG: {err}")
+
+def actualizar_botones_paso_preset(val_actual=None):
+    if val_actual is None:
+        val_actual = float(config_actual.get("paso_jog", 5.0))
+    for p_val, btn in _btns_paso_presets.items():
+        try:
+            if abs(p_val - val_actual) < 0.01:
+                btn.configure(
+                    fg_color=COLOR_KOSTAL_NAVY,
+                    text_color="#FFFFFF",
+                    border_color=COLOR_KOSTAL_NAVY
+                )
+            else:
+                btn.configure(
+                    fg_color="#FFFFFF",
+                    text_color="#334155",
+                    border_color=BORDER_LIGHT
+                )
+        except Exception:
+            pass
+
+def paso_jog_siguiente(direccion=1):
+    """Aumenta (+1) o reduce (-1) el paso entre los presets estándar [0.5, 1.0, 2.0, 5.0, 10.0]"""
+    presets = [0.5, 1.0, 2.0, 5.0, 10.0]
+    cur = obtener_paso_jog()
+    if direccion > 0:
+        sig = next((p for p in presets if p > cur + 0.01), min(100.0, cur + 5.0))
+    else:
+        sig = next((p for p in reversed(presets) if p < cur - 0.01), max(0.1, cur / 2.0))
+    fijar_paso_jog(sig)
+
+def abrir_teclado_numerico_paso():
+    """Abre un teclado numérico táctil industrial moderno para ajustar el paso JOG sin trabas"""
+    dlg = ctk.CTkToplevel(ventana)
+    dlg.title("Ajustar Paso JOG")
+    dlg.geometry("340x440")
+    dlg.resizable(False, False)
+    dlg.transient(ventana)
+    dlg.grab_set()
+    
+    try:
+        x = ventana.winfo_x() + (ventana.winfo_width() // 2) - 170
+        y = ventana.winfo_y() + (ventana.winfo_height() // 2) - 220
+        dlg.geometry(f"+{x}+{y}")
+    except Exception:
+        pass
+        
+    f_num = ctk.CTkFrame(dlg, fg_color=BG_MAIN, corner_radius=12)
+    f_num.pack(fill="both", expand=True, padx=12, pady=12)
+    
+    ctk.CTkLabel(
+        f_num,
+        text="AJUSTE DE PASO JOG (mm)",
+        font=(FONT_MAIN, 13, "bold"),
+        text_color=COLOR_KOSTAL_NAVY
+    ).pack(pady=(10, 4))
+    
+    entry_display = ctk.CTkEntry(
+        f_num,
+        height=46,
+        font=(FONT_MONO, 22, "bold"),
+        justify="center",
+        corner_radius=8,
+        border_width=2,
+        border_color=COLOR_KOSTAL_NAVY
+    )
+    val_actual = str(config_actual.get("paso_jog", "5.0"))
+    entry_display.insert(0, val_actual)
+    entry_display.pack(fill="x", padx=14, pady=(4, 8))
+    
+    f_pres = ctk.CTkFrame(f_num, fg_color="transparent")
+    f_pres.pack(fill="x", padx=10, pady=(0, 8))
+    for p_val in [0.5, 1.0, 2.0, 5.0, 10.0]:
+        ctk.CTkButton(
+            f_pres,
+            text=f"{p_val:g}",
+            font=(FONT_MAIN, 10, "bold"),
+            width=48,
+            height=28,
+            fg_color="#FFFFFF",
+            hover_color="#E2E8F0",
+            text_color=COLOR_KOSTAL_NAVY,
+            border_width=1,
+            border_color=BORDER_LIGHT,
+            corner_radius=6,
+            command=lambda v=p_val: (entry_display.delete(0, tk.END), entry_display.insert(0, str(v)))
+        ).pack(side="left", expand=True, padx=2)
+        
+    f_grid = ctk.CTkFrame(f_num, fg_color="transparent")
+    f_grid.pack(padx=10, pady=2)
+    
+    def _add_caracter(char):
+        cur = entry_display.get()
+        if char == "." and "." in cur:
+            return
+        entry_display.insert(tk.END, char)
+        
+    def _borrar_uno():
+        cur = entry_display.get()
+        if cur:
+            entry_display.delete(len(cur)-1, tk.END)
+            
+    def _limpiar():
+        entry_display.delete(0, tk.END)
+        
+    layout = [
+        ["7", "8", "9"],
+        ["4", "5", "6"],
+        ["1", "2", "3"],
+        ["C", "0", "."],
+    ]
+    for r_idx, row in enumerate(layout):
+        for c_idx, key in enumerate(row):
+            if key == "C":
+                cmd = _limpiar
+                bg_k = "#FEE2E2"
+                tx_k = "#DC2626"
+            elif key == ".":
+                cmd = lambda: _add_caracter(".")
+                bg_k = "#FFFFFF"
+                tx_k = "#1E293B"
+            else:
+                cmd = lambda k=key: _add_caracter(k)
+                bg_k = "#FFFFFF"
+                tx_k = "#1E293B"
+                
+            ctk.CTkButton(
+                f_grid,
+                text=key,
+                font=(FONT_MAIN, 16, "bold"),
+                width=80,
+                height=40,
+                fg_color=bg_k,
+                hover_color="#F1F5F9",
+                text_color=tx_k,
+                border_width=1,
+                border_color=BORDER_LIGHT,
+                corner_radius=8,
+                command=cmd
+            ).grid(row=r_idx, column=c_idx, padx=4, pady=3)
+            
+    f_act = ctk.CTkFrame(f_num, fg_color="transparent")
+    f_act.pack(fill="x", padx=12, pady=(10, 8))
+    
+    ctk.CTkButton(
+        f_act,
+        text="⌫ Borrar",
+        font=(FONT_MAIN, 11, "bold"),
+        height=36,
+        fg_color="#F1F5F9",
+        hover_color="#E2E8F0",
+        text_color="#475569",
+        corner_radius=8,
+        command=_borrar_uno
+    ).pack(side="left", fill="x", expand=True, padx=(0, 4))
+    
+    def _aplicar():
+        txt = entry_display.get().strip().replace(",", ".")
+        try:
+            val = float(txt)
+            fijar_paso_jog(val)
+            dlg.destroy()
+        except ValueError:
+            messagebox.showwarning("Valor Inválido", "Por favor ingrese un número decimal válido para el paso (ej. 1.0, 5.0).", parent=dlg)
+            
+    ctk.CTkButton(
+        f_act,
+        text="✓ Aceptar",
+        font=(FONT_MAIN, 12, "bold"),
+        height=36,
+        fg_color=COLOR_KOSTAL_NAVY,
+        hover_color=COLOR_KOSTAL_ACCENT,
+        text_color="white",
+        corner_radius=8,
+        command=_aplicar
+    ).pack(side="right", fill="x", expand=True, padx=(4, 0))
+
+def fijar_pasadas_tampo(num_pasadas):
+    """Configura si el ciclo de tampografiado realiza 1 pasada o 2 pasadas por coordenada/pieza."""
+    global config_actual
+    num = 2 if int(num_pasadas) == 2 else 1
+    config_actual["pasadas_tampo"] = num
+    guardar_configuracion()
+    
+    if 'btn_tampo_1' in globals() and btn_tampo_1 and 'btn_tampo_2' in globals() and btn_tampo_2:
+        try:
+            if num == 1:
+                btn_tampo_1.configure(
+                    fg_color=COLOR_KOSTAL_NAVY,
+                    hover_color=COLOR_KOSTAL_ACCENT,
+                    text_color="#FFFFFF",
+                    border_color=COLOR_KOSTAL_NAVY
+                )
+                btn_tampo_2.configure(
+                    fg_color="#FFFFFF",
+                    hover_color="#F1F5F9",
+                    text_color="#475569",
+                    border_color=BORDER_LIGHT
+                )
+                if 'lbl_pasada_badge' in globals() and lbl_pasada_badge:
+                    lbl_pasada_badge.configure(
+                        text="1 PASADA",
+                        fg_color="#EFF6FF",
+                        text_color="#1E40AF"
+                    )
+            else:
+                btn_tampo_2.configure(
+                    fg_color=COLOR_KOSTAL_NAVY,
+                    hover_color=COLOR_KOSTAL_ACCENT,
+                    text_color="#FFFFFF",
+                    border_color=COLOR_KOSTAL_NAVY
+                )
+                btn_tampo_1.configure(
+                    fg_color="#FFFFFF",
+                    hover_color="#F1F5F9",
+                    text_color="#475569",
+                    border_color=BORDER_LIGHT
+                )
+                if 'lbl_pasada_badge' in globals() and lbl_pasada_badge:
+                    lbl_pasada_badge.configure(
+                        text="2 PASADAS",
+                        fg_color="#ECFDF5",
+                        text_color="#065F46"
+                    )
+        except Exception:
+            pass
+            
+    if 'lbl_estado' in globals() and lbl_estado:
+        lbl_estado.configure(
+            text=f"✓ Modo de tampografiado: {num} pasada(s) por coordenada/pieza.",
+            text_color=COLOR_OK
+        )
+
 def avanzar_siguiente_pieza_matriz():
     """
-    Lógica CODESYS: sensor_y = activa el gatillo.
-    Al activarse sensor Y, marca la pieza actual como OK y se envía a la siguiente coordenada de la matriz.
-    Al completarse todas las piezas, marca el final de ciclo, retorna a Home y reinicia la matriz.
+    Lógica CODESYS / Pintado:
+    Al activarse sensor / señal PINTADO del PLC:
+    - Si pasadas_tampo == 2 y apenas se completó pasada 1:
+      Repite la misma coordenada (segunda pasada de tampografiado en la misma pieza).
+    - Si se completaron todas las pasadas (1 o 2):
+      Marca la pieza actual como OK y se envía a la siguiente coordenada de la matriz.
+    - Al completarse todas las piezas, marca el final de ciclo, retorna a Home y reinicia la matriz.
     """
-    global indice_matriz_actual, estado_pintar, maquina_en_home, contador_ciclos_completados
+    global indice_matriz_actual, estado_pintar, maquina_en_home, contador_ciclos_completados, pasada_actual_pieza
     try:
+        num_pasadas = int(config_actual.get("pasadas_tampo", 2))
+        
+        # VERIFICACIÓN DE PASADAS POR PIEZA (1 o 2 Tampos)
+        if num_pasadas > 1 and pasada_actual_pieza < num_pasadas:
+            pasada_actual_pieza += 1
+            # Repetir la misma coordenada para la pasada 2
+            if 0 <= indice_matriz_actual < len(matriz_coordenadas):
+                px, py = matriz_coordenadas[indice_matriz_actual]
+            else:
+                px, py = cero_guardado_x, cero_guardado_y
+                
+            caja_pos_x.delete(0, tk.END); caja_pos_x.insert(0, f"{px:.2f}")
+            caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{py:.2f}")
+            enviar_datos()
+            
+            # Re-activar NUEVA_POSICION y CRUZETA en el PLC
+            activar_nueva_posicion(duracion_ms=500)
+            enviar_pulso("CRUZETA", duracion_ms=350)
+            
+            dibujar_fixture_moderno()
+            actualizar_kpis_fixture()
+            if 'actualizar_telemetria_plc' in globals():
+                actualizar_telemetria_plc(px, py)
+                
+            lbl_estado.configure(
+                text=f"🔁 Señal PINTADO recibida -> Repitiendo pasada {pasada_actual_pieza}/{num_pasadas} en Pieza {indice_matriz_actual + 1}/{len(matriz_coordenadas)}: X={px:.2f} Y={py:.2f} mm | NUEVA_POSICION activada ✓",
+                text_color=COLOR_WARN
+            )
+            return
+
+        # Pasadas completadas para esta pieza -> resetear contador de pasada y avanzar
+        pasada_actual_pieza = 1
+
         # 1. Marcar pieza actual como procesada OK
         if indice_matriz_actual < len(fixture_piezas_estado):
             fixture_piezas_estado[indice_matriz_actual] = "ok"
@@ -2305,7 +2619,6 @@ def avanzar_siguiente_pieza_matriz():
             
             # REQUERIMIENTO: Activar de forma garantizada NUEVA_POS / NUEVA_POSICION en el PLC
             activar_nueva_posicion(duracion_ms=500)
-            
             enviar_pulso("CRUZETA", duracion_ms=350)
             
             dibujar_fixture_moderno()
@@ -2316,7 +2629,7 @@ def avanzar_siguiente_pieza_matriz():
             rx_ok = ultimo_plc_rx_ok if 'ultimo_plc_rx_ok' in globals() else True
             if rx_ok:
                 lbl_estado.configure(
-                    text=f"🎯 Señal PINTADO recibida -> Avanzando a pieza {indice_matriz_actual + 1}/{len(matriz_coordenadas)}: X={sig_x:.2f} Y={sig_y:.2f} mm | NUEVA_POSICION activada ✓",
+                    text=f"🎯 Señal PINTADO recibida -> Avanzando a pieza {indice_matriz_actual + 1}/{len(matriz_coordenadas)} (Pasada 1/{num_pasadas}): X={sig_x:.2f} Y={sig_y:.2f} mm | NUEVA_POSICION activada ✓",
                     text_color=COLOR_OK
                 )
             else:
@@ -2344,7 +2657,7 @@ def avanzar_siguiente_pieza_matriz():
                 lbl_ciclo_badge.configure(text=f"🏁 CICLOS: {contador_ciclos_completados}")
                 
             lbl_estado.configure(
-                text=f"🏁 FINAL DE UN CICLO #{contador_ciclos_completados}: Matriz completa ({len(matriz_coordenadas)} piezas). Retornando a Home y reiniciando matriz...",
+                text=f"🏁 FINAL DE UN CICLO #{contador_ciclos_completados}: Matriz completa ({len(matriz_coordenadas)} piezas × {num_pasadas} pasadas). Retornando a Home y reiniciando matriz...",
                 text_color=COLOR_OK
             )
             
@@ -2354,8 +2667,9 @@ def avanzar_siguiente_pieza_matriz():
             
             # Reiniciar la matriz para el siguiente ciclo (manteniendo Set 0 y Home intactos)
             def _reiniciar_matriz_post_ciclo():
-                global indice_matriz_actual, fixture_piezas_estado
+                global indice_matriz_actual, fixture_piezas_estado, pasada_actual_pieza
                 indice_matriz_actual = 0
+                pasada_actual_pieza = 1
                 fixture_piezas_estado = ["pendiente"] * matriz_total
                 dibujar_fixture_moderno()
                 actualizar_kpis_fixture()
@@ -2404,8 +2718,11 @@ def alternar_pintar():
                 return
                 
             # Requisito cumplido -> Iniciar pintado
+            global pasada_actual_pieza
             estado_pintar = True
             maquina_en_home = False
+            pasada_actual_pieza = 1
+            num_p = int(config_actual.get("pasadas_tampo", 2))
             btn_pintar.configure(text="🎨\nPINTANDO\nACTIVO\n[ON]", fg_color=COLOR_WARN, text_color="#1E293B", border_color="#B45309")
             
             # REQUERIMIENTO: Si la receta ya se corrió una vez, se queda ajustado el 0 como su predeterminado
@@ -2461,7 +2778,7 @@ def alternar_pintar():
                 actualizar_telemetria_plc(cero_guardado_x, cero_guardado_y)
                 
             lbl_estado.configure(
-                text=f"🎨 INICIO DE PINTADO ACTIVADO: Posicionado en SET 0 (X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f} mm) | NUEVA_POSICION enviada. Esperando señal PINTADO del PLC...",
+                text=f"🎨 INICIO DE PINTADO ACTIVADO: Posicionado en SET 0 (X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f} mm) | Pieza 1/{matriz_total} (Pasada 1/{num_p}). Esperando señal PINTADO del PLC...",
                 text_color=COLOR_OK
             )
             if '_tutorial_activo' in globals() and _tutorial_activo and _paso_tutorial_actual == 4:
@@ -2507,7 +2824,7 @@ def alternar_manual():
         lbl_estado.configure(text=f"✗ Error en modo: {e}", text_color=COLOR_NOK)
 
 def enviar_datos():
-    """Valida y limita estrictamente las coordenadas (X: 0.0 a 85.0 mm | Y: 0.0 a 200.0 mm)"""
+    """Valida y limita estrictamente las coordenadas (X: 0.0 a 88.0 mm | Y: 0.0 a 200.0 mm)"""
     try:
         val_x = limitar_coord_x(caja_pos_x.get())
         val_y = limitar_coord_y(caja_pos_y.get())
@@ -2548,7 +2865,7 @@ def mover_cruzeta(eje, direccion):
     """
     Mueve el eje por cruzeta:
     Toma la ubicación donde ya estaba ubicada la máquina y le suma (paso * dir_efectiva),
-    evitando saltos abruptos. Limita entre 0.0 y 200.0 mm.
+    evitando saltos abruptos. Limita X hasta 88.0 mm e Y hasta 200.0 mm.
     REQUERIMIENTO: Sentido invertido para el eje X y el eje Y.
     """
     global maquina_en_home
@@ -2565,7 +2882,7 @@ def mover_cruzeta(eje, direccion):
         return
         
     try:
-        paso = float(caja_paso.get()) 
+        paso = obtener_paso_jog()
         
         # Leer la ubicación real donde la máquina YA ESTÁ UBICADA
         if plc_conectado:
@@ -2583,7 +2900,7 @@ def mover_cruzeta(eje, direccion):
         dir_efectiva = -direccion
             
         if eje == 'X':
-            # Sumar el paso de la cruzeta al valor donde YA ESTABA ubicado (limitado a 85.0 mm máx)
+            # Sumar el paso de la cruzeta al valor donde YA ESTABA ubicado (limitado a 88.0 mm máx)
             nuevo_x = limitar_coord_x(ubicacion_x_actual + (paso * dir_efectiva))
             nuevo_y = ubicacion_y_actual
         elif eje == 'Y':
@@ -4508,6 +4825,59 @@ btn_pintar = ctk.CTkButton(
 )
 btn_pintar.pack(fill="both", expand=True, padx=4, pady=(4, 2))
 
+# SELECTOR DE PASADAS DE TAMPOGRAFÍA (1 o 2 Tampos)
+f_pasadas_box = ctk.CTkFrame(f_marcha_b, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_CARD)
+f_pasadas_box.pack(fill="x", padx=4, pady=(6, 4))
+
+f_pasadas_hdr = ctk.CTkFrame(f_pasadas_box, fg_color="transparent")
+f_pasadas_hdr.pack(fill="x", padx=8, pady=(4, 2))
+
+ctk.CTkLabel(
+    f_pasadas_hdr,
+    text="🏷️ CICLO DE TAMPOS:",
+    font=(FONT_MAIN, 10, "bold"),
+    text_color=COLOR_KOSTAL_NAVY
+).pack(side="left")
+
+lbl_pasada_badge = ctk.CTkLabel(
+    f_pasadas_hdr,
+    text="2 PASADAS",
+    font=(FONT_MAIN, 9, "bold"),
+    fg_color="#ECFDF5",
+    text_color="#065F46",
+    corner_radius=4,
+    padx=6,
+    pady=1
+)
+lbl_pasada_badge.pack(side="right")
+
+f_pasadas_btns = ctk.CTkFrame(f_pasadas_box, fg_color="transparent")
+f_pasadas_btns.pack(fill="x", padx=6, pady=(2, 6))
+
+btn_tampo_1 = ctk.CTkButton(
+    f_pasadas_btns,
+    text="1 Tampo (1 Pasada)",
+    font=(FONT_MAIN, 10, "bold"),
+    height=32,
+    corner_radius=6,
+    border_width=1,
+    border_color=BORDER_LIGHT,
+    command=lambda: fijar_pasadas_tampo(1)
+)
+btn_tampo_1.pack(side="left", fill="x", expand=True, padx=(0, 3))
+
+btn_tampo_2 = ctk.CTkButton(
+    f_pasadas_btns,
+    text="2 Tampos (2 Pasadas)",
+    font=(FONT_MAIN, 10, "bold"),
+    height=32,
+    corner_radius=6,
+    border_width=1,
+    border_color=BORDER_LIGHT,
+    command=lambda: fijar_pasadas_tampo(2)
+)
+btn_tampo_2.pack(side="right", fill="x", expand=True, padx=(3, 0))
+
 lbl_pintar_sub = ctk.CTkLabel(
     f_marcha_b,
     text="Toque para alternar ciclo automático",
@@ -4923,7 +5293,11 @@ def dibujar_fixture_moderno():
         badge_y = y1 + 9
         if st == "activa":
             recibida_plc = ultimo_plc_rx_ok if 'ultimo_plc_rx_ok' in globals() else True
-            tag_txt = "▶ RX✓" if recibida_plc else "▶ TX"
+            n_p = int(config_actual.get("pasadas_tampo", 2))
+            if n_p == 2 and 'estado_pintar' in globals() and estado_pintar:
+                tag_txt = f"▶ P{pasada_actual_pieza}/2"
+            else:
+                tag_txt = "▶ RX✓" if recibida_plc else "▶ TX"
             canvas_fixture.create_text(badge_x - 6, badge_y, text=tag_txt, font=(FONT_MAIN, 8, "bold"), fill="#2563EB")
         elif st in ("ok", "nok"):
             canvas_fixture.create_text(badge_x, badge_y, text="✓", font=(FONT_MAIN, 9, "bold"), fill=COLOR_OK)
@@ -5136,14 +5510,111 @@ f_sec_jog_hdr = ctk.CTkFrame(f_jog_b, fg_color=BG_INPUT, corner_radius=6, border
 f_sec_jog_hdr.pack(fill="x", pady=(0, 5))
 ctk.CTkLabel(f_sec_jog_hdr, text="🕹️ JOG MANUAL", font=(FONT_MAIN, 10, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left", padx=8, pady=3)
 
-# Paso de Movimiento
+# Paso de Movimiento con controles táctiles avanzados (Sin bugs ni trabas)
 f_step_row = ctk.CTkFrame(f_jog_b, fg_color="transparent")
-f_step_row.pack(fill="x", pady=(0, 6))
+f_step_row.pack(fill="x", pady=(0, 2))
 ctk.CTkLabel(f_step_row, text="Paso JOG:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
-caja_paso = ctk.CTkEntry(f_step_row, width=60, height=28, font=(FONT_MONO, 11, "bold"), justify="center", corner_radius=4)
+
+# Botón abrir teclado numérico táctil flotante
+btn_open_numpad = ctk.CTkButton(
+    f_step_row,
+    text="🔢",
+    font=(FONT_MAIN, 11),
+    width=28,
+    height=28,
+    fg_color="#FFFFFF",
+    hover_color="#E2E8F0",
+    text_color=COLOR_KOSTAL_NAVY,
+    border_width=1,
+    border_color=BORDER_LIGHT,
+    corner_radius=4,
+    command=abrir_teclado_numerico_paso
+)
+btn_open_numpad.pack(side="right", padx=(2, 0))
+
+ctk.CTkLabel(f_step_row, text="mm", font=(FONT_MAIN, 9), text_color=TEXT_MUTED).pack(side="right", padx=(2, 2))
+
+# Botón incrementar paso [+]
+btn_step_plus = ctk.CTkButton(
+    f_step_row,
+    text="+",
+    font=(FONT_MAIN, 13, "bold"),
+    width=26,
+    height=28,
+    fg_color="#FFFFFF",
+    hover_color="#E2E8F0",
+    text_color="#1E293B",
+    border_width=1,
+    border_color=BORDER_LIGHT,
+    corner_radius=4,
+    command=lambda: paso_jog_siguiente(1)
+)
+btn_step_plus.pack(side="right", padx=1)
+
+# Caja de entrada interactiva con sincronización y persistencia
+caja_paso = ctk.CTkEntry(f_step_row, width=54, height=28, font=(FONT_MONO, 11, "bold"), justify="center", corner_radius=4)
 caja_paso.insert(0, str(config_actual.get("paso_jog", "5.0")))
-caja_paso.pack(side="right", padx=(2, 0))
-ctk.CTkLabel(f_step_row, text="mm", font=(FONT_MAIN, 9), text_color=TEXT_MUTED).pack(side="right")
+caja_paso.pack(side="right", padx=1)
+
+def _on_caja_paso_change(event=None):
+    txt = caja_paso.get().strip().replace(",", ".")
+    try:
+        v = float(txt)
+        if 0.05 <= v <= 100.0:
+            config_actual["paso_jog"] = v
+            guardar_configuracion()
+            actualizar_botones_paso_preset(v)
+    except Exception:
+        pass
+
+def _on_caja_paso_focusout(event=None):
+    v = obtener_paso_jog()
+    caja_paso.delete(0, tk.END)
+    caja_paso.insert(0, f"{v:g}")
+    actualizar_botones_paso_preset(v)
+
+caja_paso.bind("<KeyRelease>", _on_caja_paso_change)
+caja_paso.bind("<FocusOut>", _on_caja_paso_focusout)
+caja_paso.bind("<Return>", lambda e: (caja_paso.master.focus_set(), _on_caja_paso_focusout()))
+
+# Botón reducir paso [-]
+btn_step_minus = ctk.CTkButton(
+    f_step_row,
+    text="-",
+    font=(FONT_MAIN, 13, "bold"),
+    width=26,
+    height=28,
+    fg_color="#FFFFFF",
+    hover_color="#E2E8F0",
+    text_color="#1E293B",
+    border_width=1,
+    border_color=BORDER_LIGHT,
+    corner_radius=4,
+    command=lambda: paso_jog_siguiente(-1)
+)
+btn_step_minus.pack(side="right", padx=(0, 1))
+
+# Fila de Presets Rápidos de Paso (0.5, 1.0, 2.0, 5.0, 10.0)
+f_step_presets = ctk.CTkFrame(f_jog_b, fg_color="transparent")
+f_step_presets.pack(fill="x", pady=(1, 5))
+
+_btns_paso_presets.clear()
+for p_preset in [0.5, 1.0, 2.0, 5.0, 10.0]:
+    b_p = ctk.CTkButton(
+        f_step_presets,
+        text=f"{p_preset:g}",
+        font=(FONT_MAIN, 9, "bold"),
+        height=24,
+        corner_radius=4,
+        border_width=1,
+        border_color=BORDER_LIGHT,
+        fg_color="#FFFFFF",
+        hover_color="#F1F5F9",
+        text_color="#334155",
+        command=lambda v=p_preset: fijar_paso_jog(v)
+    )
+    b_p.pack(side="left", expand=True, fill="x", padx=1)
+    _btns_paso_presets[p_preset] = b_p
 
 # Cruzeta y Coordenadas Agrandadas
 f_jog_ctrl = ctk.CTkFrame(f_jog_b, fg_color="transparent")
@@ -5920,7 +6391,7 @@ def guardar_o_actualizar_receta():
         receta_dict["cero_calibrado"] = False
         receta_dict["corridas"] = 0
         if "recetas" not in config_actual:
-            config_actual["recetas"] = []
+            config_actual["recetas"] = []   
         config_actual["recetas"].append(receta_dict)
         msg = f"Nueva receta '{nom}' registrada con éxito."
         
@@ -6527,5 +6998,7 @@ ctk.CTkLabel(
 actualizar_reloj_y_fecha()
 monitoreo_ciclico()
 resetear_variables_inicio()
+fijar_pasadas_tampo(config_actual.get("pasadas_tampo", 2))
+actualizar_botones_paso_preset()
 
 ventana.mainloop()

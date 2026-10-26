@@ -3,6 +3,7 @@
     "cero_guardado_y": 0.0,
     "velocidad": 100,
     "paso_jog": 5.0,
+    "pasadas_tampo": 2,
     "receta_activa": "KSL-002 - Inserto Palanca",
     "recetas": [
         {
