@@ -337,6 +337,7 @@ config_actual = {
     "velocidad": 100,
     "paso_jog": 5.0,
     "pasadas_tampo": 2,
+    "patron_pintado": "vertical",
     "receta_activa": "KSL-001 - Bisel Frontal",
     "recetas": list(DEFAULT_RECETAS),
     "usuarios": list(DEFAULT_USUARIOS),
@@ -663,11 +664,21 @@ def actualizar_coordenadas_matriz():
     else:
         dir_y = -1.0
 
-    for r in range(matriz_filas):
+    patron = config_actual.get("patron_pintado", "vertical")
+    if patron == "vertical":
+        # Recorrido vertical: columna por columna (de arriba hacia abajo en cada columna)
         for c in range(matriz_cols):
-            x = limitar_coord_x(x0 + dir_x * (c * dx))
-            y = limitar_coord_y(y0 + dir_y * (r * dy))
-            matriz_coordenadas.append((round(x, 2), round(y, 2)))
+            for r in range(matriz_filas):
+                x = limitar_coord_x(x0 + dir_x * (c * dx))
+                y = limitar_coord_y(y0 + dir_y * (r * dy))
+                matriz_coordenadas.append((round(x, 2), round(y, 2)))
+    else:
+        # Recorrido horizontal: fila por fila (de izquierda a derecha)
+        for r in range(matriz_filas):
+            for c in range(matriz_cols):
+                x = limitar_coord_x(x0 + dir_x * (c * dx))
+                y = limitar_coord_y(y0 + dir_y * (r * dy))
+                matriz_coordenadas.append((round(x, 2), round(y, 2)))
 
 actualizar_coordenadas_matriz()
 
@@ -5033,6 +5044,40 @@ btn_toggle_coords = ctk.CTkButton(
 )
 btn_toggle_coords.pack(side="right", padx=6, pady=3)
 
+def alternar_patron_pintado():
+    global config_actual
+    cur = config_actual.get("patron_pintado", "vertical")
+    nuevo = "horizontal" if cur == "vertical" else "vertical"
+    config_actual["patron_pintado"] = nuevo
+    guardar_configuracion()
+    actualizar_boton_patron()
+    actualizar_coordenadas_matriz()
+    dibujar_fixture_moderno()
+    estado_str = "Vertical (columnas ↓)" if nuevo == "vertical" else "Horizontal (filas →)"
+    lbl_estado.configure(text=f"Patrón de pintado configurado a: {estado_str}", text_color=COLOR_KOSTAL_ACCENT)
+
+def actualizar_boton_patron():
+    if 'btn_toggle_patron' in globals() and btn_toggle_patron:
+        p = config_actual.get("patron_pintado", "vertical")
+        if p == "vertical":
+            btn_toggle_patron.configure(text="⬇️ Vertical", fg_color=COLOR_KOSTAL_NAVY)
+        else:
+            btn_toggle_patron.configure(text="➡️ Horizontal", fg_color="#64748B")
+
+btn_toggle_patron = ctk.CTkButton(
+    f_matriz_info_bar,
+    text="⬇️ Vertical",
+    font=(FONT_MAIN, 9, "bold"),
+    width=85,
+    height=24,
+    fg_color=COLOR_KOSTAL_NAVY,
+    hover_color=COLOR_KOSTAL_ACCENT,
+    text_color="white",
+    corner_radius=4,
+    command=alternar_patron_pintado
+)
+btn_toggle_patron.pack(side="right", padx=(0, 4), pady=3)
+
 # ------------------------------------------------------------------------------
 # BARRA DE TELEMETRÍA Y RECEPCIÓN PLC EN VIVO (DIAGNÓSTICO & PRUEBAS DE MOVIMIENTO)
 # ------------------------------------------------------------------------------
@@ -5132,9 +5177,14 @@ def al_click_en_pieza_fixture(event):
         card_w = max(12.0, (w - 2 * pad_x - (cols - 1) * gap_x) / cols)
         card_h = max(12.0, (h - 2 * pad_y - (filas - 1) * gap_y) / filas)
         
+        patron = config_actual.get("patron_pintado", "vertical")
         for i in range(total_piezas):
-            r = i // cols
-            c = i % cols
+            if patron == "vertical":
+                c = i // filas
+                r = i % filas
+            else:
+                r = i // cols
+                c = i % cols
             x1 = pad_x + c * (card_w + gap_x)
             y1 = pad_y + r * (card_h + gap_y)
             x2 = x1 + card_w
@@ -5217,9 +5267,14 @@ def dibujar_fixture_moderno():
     
     rad = max(2, min(10, int(card_h * 0.18)))
     
+    patron = config_actual.get("patron_pintado", "vertical")
     for i in range(total_piezas):
-        r = i // cols
-        c = i % cols
+        if patron == "vertical":
+            c = i // filas
+            r = i % filas
+        else:
+            r = i // cols
+            c = i % cols
         x1 = pad_x + c * (card_w + gap_x)
         y1 = pad_y + r * (card_h + gap_y)
         x2 = x1 + card_w
@@ -7101,5 +7156,6 @@ monitoreo_ciclico()
 resetear_variables_inicio()
 fijar_pasadas_tampo(config_actual.get("pasadas_tampo", 2))
 actualizar_botones_paso_preset()
+actualizar_boton_patron()
 
 ventana.mainloop()
