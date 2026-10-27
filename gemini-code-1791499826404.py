@@ -22,41 +22,35 @@ try:
     # Estado de visibilidad del teclado táctil
     _estado_teclado_visible = False
 
-    # Función para solicitar cierre del teclado cuando ya no se usa
+    # Función para solicitar cierre del teclado cuando ya no se usa (ejecución asíncrona no bloqueante)
     def ocultar_teclado_nativo(e=None, forzar=False):
         global _estado_teclado_visible
+        if not _estado_teclado_visible and not forzar:
+            return
         _estado_teclado_visible = False
         if sys.platform.startswith("linux"):
-            try:
-                import subprocess
-                subprocess.Popen([
-                    "dbus-send", "--type=method_call",
-                    "--dest=org.onboard.Onboard",
-                    "/org/onboard/Onboard/Keyboard",
-                    "org.onboard.Onboard.Keyboard.Hide"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen([
-                    "gdbus", "call", "--session",
-                    "--dest", "org.onboard.Onboard",
-                    "--object-path", "/org/onboard/Onboard/Keyboard",
-                    "--method", "org.onboard.Onboard.Keyboard.Hide"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen([
-                    "gdbus", "call", "--session",
-                    "--dest", "org.gnome.Shell",
-                    "--object-path", "/org/gnome/Shell",
-                    "--method", "org.gnome.Shell.Eval",
-                    "Main.keyboard.close();"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen([
-                    "gsettings", "set",
-                    "org.gnome.desktop.a11y.interface",
-                    "show-on-screen-keyboard", "false"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                if forzar:
-                    subprocess.Popen(["pkill", "-f", "onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except Exception:
-                pass
+            import threading
+            def _async_ocultar():
+                try:
+                    import subprocess
+                    subprocess.run([
+                        "dbus-send", "--type=method_call",
+                        "--dest=org.onboard.Onboard",
+                        "/org/onboard/Onboard/Keyboard",
+                        "org.onboard.Onboard.Keyboard.Hide"
+                    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.4)
+                    subprocess.run([
+                        "gdbus", "call", "--session",
+                        "--dest", "org.gnome.Shell",
+                        "--object-path", "/org/gnome/Shell",
+                        "--method", "org.gnome.Shell.Eval",
+                        "Main.keyboard.close();"
+                    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.4)
+                    if forzar:
+                        subprocess.run(["pkill", "-f", "onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.4)
+                except Exception:
+                    pass
+            threading.Thread(target=_async_ocultar, daemon=True).start()
 
     def _patched_btn_on_release(self, event=None):
         if self._state not in ("disabled", tk.DISABLED):
@@ -94,55 +88,41 @@ try:
     ctk.CTkButton._on_release = _patched_btn_on_release
     ctk.CTkButton._draw = _patched_btn_draw
 
-    # Función para solicitar apertura del teclado escalado y asegurando que flote al frente
-    def invocar_teclado_nativo_ubuntu(e=None):
-        global _estado_teclado_visible
+    # Función para solicitar apertura del teclado escalado y asegurando que flote al frente (asíncrona y debounced)
+    _ultimo_invocar_teclado_ts = 0.0
+    def invocar_teclado_nativo_ubuntu(e=None, forzar=False):
+        global _estado_teclado_visible, _ultimo_invocar_teclado_ts
+        ahora = time.time()
+        if _estado_teclado_visible and not forzar and (ahora - _ultimo_invocar_teclado_ts < 0.8):
+            return
+        _ultimo_invocar_teclado_ts = ahora
         _estado_teclado_visible = True
         if sys.platform.startswith("linux"):
-            try:
-                import subprocess
-                # 1. Escalar altura del teclado a 340px para teclas grandes y cómodas al tacto
-                subprocess.Popen([
-                    "gsettings", "set", "org.onboard.window.landscape", "dock-height", "340"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen([
-                    "gsettings", "set", "org.onboard.window.portrait", "dock-height", "340"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen([
-                    "gsettings", "set", "org.onboard.auto-show", "enabled", "false"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-                # 2. GNOME Shell teclado nativo
-                subprocess.Popen([
-                    "gsettings", "set",
-                    "org.gnome.desktop.a11y.interface",
-                    "show-on-screen-keyboard", "true"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen([
-                    "gsettings", "set",
-                    "org.gnome.desktop.a11y.applications",
-                    "screen-keyboard-enabled", "true"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen([
-                    "gdbus", "call", "--session",
-                    "--dest", "org.gnome.Shell",
-                    "--object-path", "/org/gnome/Shell",
-                    "--method", "org.gnome.Shell.Eval",
-                    "Main.keyboard.open(null, true);"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-                # 3. XFCE / Onboard: desplegar y forzar al frente absoluto por encima de la interfaz
-                subprocess.Popen(["onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen([
-                    "dbus-send", "--type=method_call",
-                    "--dest=org.onboard.Onboard",
-                    "/org/onboard/Onboard/Keyboard",
-                    "org.onboard.Onboard.Keyboard.Show"
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen(["wmctrl", "-r", "Onboard", "-b", "add,above"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen(["wmctrl", "-a", "Onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except Exception:
-                pass
+            import threading
+            def _async_mostrar():
+                try:
+                    import subprocess
+                    # Desplegar Onboard si está disponible
+                    subprocess.run(["onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.4)
+                    subprocess.run([
+                        "dbus-send", "--type=method_call",
+                        "--dest=org.onboard.Onboard",
+                        "/org/onboard/Onboard/Keyboard",
+                        "org.onboard.Onboard.Keyboard.Show"
+                    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.4)
+                    # GNOME Shell teclado nativo
+                    subprocess.run([
+                        "gdbus", "call", "--session",
+                        "--dest", "org.gnome.Shell",
+                        "--object-path", "/org/gnome/Shell",
+                        "--method", "org.gnome.Shell.Eval",
+                        "Main.keyboard.open(null, true);"
+                    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.4)
+                    subprocess.run(["wmctrl", "-r", "Onboard", "-b", "add,above"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.4)
+                    subprocess.run(["wmctrl", "-a", "Onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.4)
+                except Exception:
+                    pass
+            threading.Thread(target=_async_mostrar, daemon=True).start()
 
     def alternar_teclado_tactil():
         """Alterna visibilidad del teclado táctil con un solo toque del operador"""
@@ -150,31 +130,40 @@ try:
         if _estado_teclado_visible:
             ocultar_teclado_nativo(forzar=True)
         else:
-            invocar_teclado_nativo_ubuntu()
+            invocar_teclado_nativo_ubuntu(forzar=True)
 
-    # En CTkEntry, asegurar que al tocar reciba foco inmediato, oculte cursor y despliegue teclado.
-    # Al presionar Enter, se oculta el teclado automáticamente.
+    # En CTkEntry, asegurar que al tocar reciba foco inmediato y despliegue teclado sin bloquear.
+    # Soporta teclas Enter y KP_Enter para confirmación fluida.
     _orig_entry_init = ctk.CTkEntry.__init__
     def _patched_entry_init(self, *args, **kwargs):
         _orig_entry_init(self, *args, **kwargs)
-        try:
-            self.configure(cursor="none")
-            if hasattr(self, "_entry") and self._entry is not None:
-                self._entry.configure(cursor="none")
-        except Exception:
-            pass
         def _al_tocar_entry(e=None):
+            if getattr(self, "_no_teclado_auto", False):
+                return
             try:
-                self._entry.focus_set()
+                if hasattr(self, "_entry") and self._entry is not None:
+                    self._entry.focus_set()
                 invocar_teclado_nativo_ubuntu()
             except Exception:
                 pass
+
+        try:
+            self.bind("<Button-1>", _al_tocar_entry, add="+")
+        except Exception:
+            pass
         if hasattr(self, "_canvas") and self._canvas is not None:
-            self._canvas.bind("<Button-1>", _al_tocar_entry, add="+")
+            try:
+                self._canvas.bind("<Button-1>", _al_tocar_entry, add="+")
+            except Exception:
+                pass
         if hasattr(self, "_entry") and self._entry is not None:
-            self._entry.bind("<FocusIn>", lambda e: invocar_teclado_nativo_ubuntu(), add="+")
-            self._entry.bind("<Button-1>", lambda e: invocar_teclado_nativo_ubuntu(), add="+")
-            self._entry.bind("<Return>", lambda e: ocultar_teclado_nativo(), add="+")
+            try:
+                self._entry.bind("<FocusIn>", lambda e: _al_tocar_entry(e), add="+")
+                self._entry.bind("<Button-1>", lambda e: _al_tocar_entry(e), add="+")
+                self._entry.bind("<Return>", lambda e: ocultar_teclado_nativo(), add="+")
+                self._entry.bind("<KP_Enter>", lambda e: ocultar_teclado_nativo(), add="+")
+            except Exception:
+                pass
     ctk.CTkEntry.__init__ = _patched_entry_init
 
     # -------------------------------------------------------------------------
@@ -2388,6 +2377,7 @@ def abrir_teclado_numerico_paso():
         border_width=2,
         border_color=COLOR_KOSTAL_NAVY
     )
+    entry_display._no_teclado_auto = True
     val_actual = str(config_actual.get("paso_jog", "5.0"))
     entry_display.insert(0, val_actual)
     entry_display.pack(fill="x", padx=14, pady=(4, 8))
@@ -2498,6 +2488,11 @@ def abrir_teclado_numerico_paso():
         corner_radius=8,
         command=_aplicar
     ).pack(side="right", fill="x", expand=True, padx=(4, 0))
+
+    entry_display.bind("<Return>", lambda e: (ocultar_teclado_nativo(), _aplicar(), "break")[2])
+    entry_display.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), _aplicar(), "break")[2])
+    dlg.bind("<Return>", lambda e: (ocultar_teclado_nativo(), _aplicar(), "break")[2])
+    dlg.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), _aplicar(), "break")[2])
 
 def fijar_pasadas_tampo(num_pasadas):
     """Configura si el ciclo de tampografiado realiza 1 pasada o 2 pasadas por coordenada/pieza."""
@@ -3700,13 +3695,46 @@ ventana.focus_force()
 ventana.bind("<F11>", lambda e: alternar_pantalla_completa())
 ventana.bind("<Escape>", lambda e: ventana.attributes("-fullscreen", False))
 
+# Detección táctil inteligente: verificar si un widget o sus contenedores pertenecen a un campo de texto
+def _es_widget_de_texto(w):
+    try:
+        cur = w
+        for _ in range(5):
+            if cur is None:
+                break
+            if isinstance(cur, (ctk.CTkEntry, tk.Entry, ttk.Entry, tk.Text)):
+                return True
+            c = ""
+            try:
+                c = cur.winfo_class()
+            except Exception:
+                pass
+            if c in ("Entry", "TEntry", "Text"):
+                return True
+            master = getattr(cur, "master", None)
+            if isinstance(master, ctk.CTkEntry):
+                return True
+            cur = master
+    except Exception:
+        pass
+    return False
+
 # Detección táctil global: al tocar cualquier área libre que NO sea entrada de texto, ocultar teclado
 def _al_tocar_pantalla(event):
     try:
         w = event.widget
-        clase = w.winfo_class()
-        if clase in ("Entry", "TEntry", "Text"):
+        if _es_widget_de_texto(w):
             return
+        # Si el widget actual con foco es un campo de texto y el toque ocurrió dentro de un diálogo modal, no cerrar
+        cur_focus = None
+        try:
+            cur_focus = ventana.focus_get()
+        except Exception:
+            pass
+        if cur_focus is not None and _es_widget_de_texto(cur_focus):
+            nombre_w = str(w).lower()
+            if "toplevel" in nombre_w or "dialog" in nombre_w or "num" in nombre_w:
+                return
         ocultar_teclado_nativo()
     except Exception:
         pass
@@ -4077,6 +4105,27 @@ btn_iniciar_sesion = ctk.CTkButton(
 )
 btn_iniciar_sesion.pack(fill="x", pady=(14, 10))
 
+# Detección de tecla Enter en el campo de contraseña y pantalla de Login
+def _al_presionar_enter_login(e=None):
+    try:
+        ocultar_teclado_nativo()
+    except Exception:
+        pass
+    procesar_login_formulario()
+    return "break"
+
+entry_pass.bind("<Return>", _al_presionar_enter_login)
+entry_pass.bind("<KP_Enter>", _al_presionar_enter_login)
+
+def _on_ventana_return_global(e=None):
+    try:
+        if 'frame_login' in globals() and frame_login.winfo_ismapped():
+            _al_presionar_enter_login(e)
+    except Exception:
+        pass
+ventana.bind("<Return>", _on_ventana_return_global, add="+")
+ventana.bind("<KP_Enter>", _on_ventana_return_global, add="+")
+
 f_foot = ctk.CTkFrame(f_login_inner, fg_color="transparent")
 f_foot.pack(fill="x", pady=(14, 0))
 ctk.CTkLabel(f_foot, text="Desarrollado en alianza con", font=(FONT_MAIN, 9), text_color=TEXT_MUTED).pack(side="left", expand=True, anchor="e", padx=4)
@@ -4406,6 +4455,14 @@ def abrir_dialogo_fin_de_hora():
         )
         btn_guardar.pack(fill="x", padx=18, pady=(8, 10))
         
+        # Enlazar teclas Enter para navegación rápida entre campos y guardado inmediato
+        entry_nok.bind("<Return>", lambda e: (entry_ok.focus_set(), entry_ok.select_range(0, tk.END), "break")[2])
+        entry_nok.bind("<KP_Enter>", lambda e: (entry_ok.focus_set(), entry_ok.select_range(0, tk.END), "break")[2])
+        entry_ok.bind("<Return>", lambda e: (ocultar_teclado_nativo(), guardar_fin_hora(), "break")[2])
+        entry_ok.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), guardar_fin_hora(), "break")[2])
+        dialogo.bind("<Return>", lambda e: (ocultar_teclado_nativo(), guardar_fin_hora(), "break")[2])
+        dialogo.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), guardar_fin_hora(), "break")[2])
+
         # Poner foco directo en el campo NOK para que el operador solo escriba el número
         entry_nok.focus_set()
         entry_nok.select_range(0, tk.END)
@@ -5497,6 +5554,19 @@ ctk.CTkLabel(f_vel_row, text="Velocidad:", font=(FONT_MAIN, 10, "bold"), text_co
 caja_vel = ctk.CTkEntry(f_vel_row, width=60, height=28, font=(FONT_MONO, 11, "bold"), justify="center", corner_radius=4)
 caja_vel.insert(0, str(config_actual.get("velocidad", "100")))
 caja_vel.pack(side="right", padx=(2, 0))
+
+def _on_caja_vel_change(e=None):
+    try:
+        v = int(float(caja_vel.get().strip()))
+        if v > 0:
+            config_actual["velocidad"] = v
+            guardar_configuracion()
+    except Exception:
+        pass
+
+caja_vel.bind("<KeyRelease>", _on_caja_vel_change)
+caja_vel.bind("<Return>", lambda e: (ocultar_teclado_nativo(), caja_vel.master.focus_set(), _on_caja_vel_change(), "break")[3])
+caja_vel.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), caja_vel.master.focus_set(), _on_caja_vel_change(), "break")[3])
 ctk.CTkLabel(f_vel_row, text="mm/s", font=(FONT_MAIN, 9), text_color=TEXT_MUTED).pack(side="right")
 
 # Divisor sutil
@@ -5575,7 +5645,8 @@ def _on_caja_paso_focusout(event=None):
 
 caja_paso.bind("<KeyRelease>", _on_caja_paso_change)
 caja_paso.bind("<FocusOut>", _on_caja_paso_focusout)
-caja_paso.bind("<Return>", lambda e: (caja_paso.master.focus_set(), _on_caja_paso_focusout()))
+caja_paso.bind("<Return>", lambda e: (ocultar_teclado_nativo(), caja_paso.master.focus_set(), _on_caja_paso_focusout(), "break")[3])
+caja_paso.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), caja_paso.master.focus_set(), _on_caja_paso_focusout(), "break")[3])
 
 # Botón reducir paso [-]
 btn_step_minus = ctk.CTkButton(
@@ -6436,6 +6507,28 @@ btn_limpiar_rec = ctk.CTkButton(
 )
 btn_limpiar_rec.pack(side="left")
 
+# Enlazar teclas Enter para navegación rápida entre campos y guardado de receta
+entry_search_receta.bind("<Return>", lambda e: (ocultar_teclado_nativo(), refrescar_lista_recetas_admin(), "break")[2])
+entry_search_receta.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), refrescar_lista_recetas_admin(), "break")[2])
+entry_rec_nom.bind("<Return>", lambda e: (entry_rec_pieza.focus_set(), "break")[1])
+entry_rec_nom.bind("<KP_Enter>", lambda e: (entry_rec_pieza.focus_set(), "break")[1])
+entry_rec_pieza.bind("<Return>", lambda e: (entry_rec_mod.focus_set(), "break")[1])
+entry_rec_pieza.bind("<KP_Enter>", lambda e: (entry_rec_mod.focus_set(), "break")[1])
+entry_rec_mod.bind("<Return>", lambda e: (entry_rec_vel.focus_set(), "break")[1])
+entry_rec_mod.bind("<KP_Enter>", lambda e: (entry_rec_vel.focus_set(), "break")[1])
+entry_rec_vel.bind("<Return>", lambda e: (entry_rec_filas.focus_set(), "break")[1])
+entry_rec_vel.bind("<KP_Enter>", lambda e: (entry_rec_filas.focus_set(), "break")[1])
+entry_rec_filas.bind("<Return>", lambda e: (entry_rec_cols.focus_set(), "break")[1])
+entry_rec_filas.bind("<KP_Enter>", lambda e: (entry_rec_cols.focus_set(), "break")[1])
+entry_rec_cols.bind("<Return>", lambda e: (entry_rec_dx.focus_set(), "break")[1])
+entry_rec_cols.bind("<KP_Enter>", lambda e: (entry_rec_dx.focus_set(), "break")[1])
+entry_rec_dx.bind("<Return>", lambda e: (entry_rec_dy.focus_set(), "break")[1])
+entry_rec_dx.bind("<KP_Enter>", lambda e: (entry_rec_dy.focus_set(), "break")[1])
+entry_rec_dy.bind("<Return>", lambda e: (ocultar_teclado_nativo(), guardar_o_actualizar_receta(), "break")[2])
+entry_rec_dy.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), guardar_o_actualizar_receta(), "break")[2])
+entry_rec_img.bind("<Return>", lambda e: (ocultar_teclado_nativo(), guardar_o_actualizar_receta(), "break")[2])
+entry_rec_img.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), guardar_o_actualizar_receta(), "break")[2])
+
 # Tabla Catálogo de Recetas Fiel a la Imagen 4
 frame_tabla_rec = ctk.CTkFrame(view_recetas, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD)
 frame_tabla_rec.pack(fill="both", expand=True, pady=4)
@@ -6733,6 +6826,14 @@ btn_limpiar_usr = ctk.CTkButton(
     command=limpiar_formulario_usuario
 )
 btn_limpiar_usr.pack(side="left")
+
+# Enlazar teclas Enter para navegación rápida entre campos y guardado de usuario
+entry_usr_num.bind("<Return>", lambda e: (entry_usr_nom.focus_set(), "break")[1])
+entry_usr_num.bind("<KP_Enter>", lambda e: (entry_usr_nom.focus_set(), "break")[1])
+entry_usr_nom.bind("<Return>", lambda e: (entry_usr_pass.focus_set(), "break")[1])
+entry_usr_nom.bind("<KP_Enter>", lambda e: (entry_usr_pass.focus_set(), "break")[1])
+entry_usr_pass.bind("<Return>", lambda e: (ocultar_teclado_nativo(), guardar_o_actualizar_usuario(), "break")[2])
+entry_usr_pass.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), guardar_o_actualizar_usuario(), "break")[2])
 
 # Tabla de Usuarios Fiel al Mockup Oficial (Imagen 2)
 frame_tabla_usr = ctk.CTkFrame(view_usuarios, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD)
