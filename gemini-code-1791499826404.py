@@ -6317,12 +6317,18 @@ entry_search_receta.pack(side="left", padx=(0, 8), pady=2)
 entry_search_receta.bind("<KeyRelease>", lambda e: refrescar_lista_recetas_admin())
 
 _mostrar_form_rec = False
+_receta_en_edicion_nombre_original = None
+
 def alternar_mostrar_form_receta():
     global _mostrar_form_rec
     _mostrar_form_rec = not _mostrar_form_rec
     if _mostrar_form_rec:
         f_rec_form_card.pack(fill="x", pady=(0, 10), before=frame_tabla_rec)
         btn_nueva_rec.configure(text="▲ OCULTAR FORMULARIO")
+        try:
+            view_recetas._parent_canvas.yview_moveto(0.0)
+        except Exception:
+            pass
     else:
         f_rec_form_card.pack_forget()
         btn_nueva_rec.configure(text="+ NUEVA RECETA")
@@ -6341,13 +6347,22 @@ btn_nueva_rec = ctk.CTkButton(
 )
 btn_nueva_rec.pack(side="right")
 
+lbl_contador_recetas = ctk.CTkLabel(
+    f_rec_top_bar,
+    text=f"Recetas: {len(config_actual.get('recetas', []))}/99",
+    font=(FONT_MAIN, 11, "bold"),
+    text_color=COLOR_KOSTAL_DARK
+)
+lbl_contador_recetas.pack(side="right", padx=(0, 14))
+
 # Formulario de Creación / Modificación de Receta
 f_rec_form_card = ctk.CTkFrame(view_recetas, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD)
 
 f_rec_form_grid = ctk.CTkFrame(f_rec_form_card, fg_color="transparent")
 f_rec_form_grid.pack(fill="x", padx=14, pady=12)
 
-ctk.CTkLabel(f_rec_form_grid, text="Formulario de Receta", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_KOSTAL_DARK).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+lbl_form_rec_titulo = ctk.CTkLabel(f_rec_form_grid, text="Formulario de Receta", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_KOSTAL_DARK)
+lbl_form_rec_titulo.grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
 
 ctk.CTkLabel(f_rec_form_grid, text="Nombre Receta:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).grid(row=1, column=0, sticky="w", pady=4)
 entry_rec_nom = ctk.CTkEntry(f_rec_form_grid, width=220, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 11))
@@ -6452,34 +6467,48 @@ f_rec_btns = ctk.CTkFrame(f_rec_form_card, fg_color="transparent")
 f_rec_btns.pack(fill="x", padx=14, pady=(0, 12))
 
 def limpiar_campos_receta():
+    global _receta_en_edicion_nombre_original
+    _receta_en_edicion_nombre_original = None
+    if 'lbl_form_rec_titulo' in globals():
+        lbl_form_rec_titulo.configure(text="Formulario de Receta (Nueva)", text_color=COLOR_KOSTAL_DARK)
+    if 'btn_guardar_rec' in globals():
+        btn_guardar_rec.configure(text="💾 Guardar Receta", fg_color=COLOR_KOSTAL_NAVY, hover_color=COLOR_KOSTAL_LIGHT)
+    if 'btn_cancelar_edicion' in globals():
+        btn_cancelar_edicion.pack_forget()
     entry_rec_nom.delete(0, tk.END)
     entry_rec_pieza.delete(0, tk.END)
     entry_rec_mod.delete(0, tk.END)
     entry_rec_vel.delete(0, tk.END)
+    entry_rec_vel.insert(0, "115")
     entry_rec_dx.delete(0, tk.END)
+    entry_rec_dx.insert(0, "30.0")
     entry_rec_dy.delete(0, tk.END)
+    entry_rec_dy.insert(0, "30.0")
     entry_rec_img.delete(0, tk.END)
     option_rec_filas.set("3")
     option_rec_cols.set("5")
     lbl_rec_form_preview.configure(image=None, text="[Preview]")
+    if 'f_rec_items_container' in globals():
+        ventana.after(50, refrescar_lista_recetas_admin)
 
 def guardar_o_actualizar_receta():
+    global _receta_en_edicion_nombre_original
     nom = entry_rec_nom.get().strip()
     pieza = entry_rec_pieza.get().strip()
     modelo = entry_rec_mod.get().strip()
     
     if not nom or not pieza or not modelo:
-        messagebox.showerror("Error", "Nombre de receta, nombre de la pieza y modelo son obligatorios.")
+        messagebox.showerror("Error", "Nombre de receta, nombre de la pieza y modelo son obligatorios.", parent=ventana)
         return
         
     try:
-        filas = max(1, int(option_rec_filas.get().strip()))
-        cols = max(1, int(option_rec_cols.get().strip()))
-        dx = float(entry_rec_dx.get())
-        dy = float(entry_rec_dy.get())
-        vel = int(entry_rec_vel.get())
+        filas = max(1, int(str(option_rec_filas.get()).strip()))
+        cols = max(1, int(str(option_rec_cols.get()).strip()))
+        dx = float(str(entry_rec_dx.get()).strip().replace(',', '.'))
+        dy = float(str(entry_rec_dy.get()).strip().replace(',', '.'))
+        vel = int(float(str(entry_rec_vel.get()).strip().replace(',', '.')))
     except ValueError:
-        messagebox.showerror("Error", "Verifique que filas, columnas, distancias y velocidad sean valores numéricos válidos.")
+        messagebox.showerror("Error", "Verifique que filas, columnas, distancias y velocidad sean valores numéricos válidos.", parent=ventana)
         return
         
     img_path = entry_rec_img.get().strip()
@@ -6497,41 +6526,86 @@ def guardar_o_actualizar_receta():
         "imagen": img_path
     }
     
-    idx_existente = -1
-    for i, r in enumerate(config_actual.get("recetas", [])):
-        if r.get("nombre") == nom:
-            idx_existente = i
-            break
+    recetas_lista = config_actual.get("recetas", [])
+    
+    # Caso 1: Se está editando una receta existente previamente cargada
+    if _receta_en_edicion_nombre_original:
+        idx_edicion = -1
+        for i, r in enumerate(recetas_lista):
+            if r.get("nombre") == _receta_en_edicion_nombre_original:
+                idx_edicion = i
+                break
+                
+        if idx_edicion >= 0:
+            receta_previa = recetas_lista[idx_edicion]
+            receta_dict["cero_guardado_x"] = receta_previa.get("cero_guardado_x", 0.0)
+            receta_dict["cero_guardado_y"] = receta_previa.get("cero_guardado_y", 0.0)
+            receta_dict["cero_calibrado"] = receta_previa.get("cero_calibrado", False)
+            receta_dict["corridas"] = receta_previa.get("corridas", 0)
+            recetas_lista[idx_edicion] = receta_dict
             
-    if idx_existente >= 0:
-        receta_previa = config_actual["recetas"][idx_existente]
-        receta_dict["cero_guardado_x"] = receta_previa.get("cero_guardado_x", 0.0)
-        receta_dict["cero_guardado_y"] = receta_previa.get("cero_guardado_y", 0.0)
-        receta_dict["cero_calibrado"] = receta_previa.get("cero_calibrado", False)
-        receta_dict["corridas"] = receta_previa.get("corridas", 0)
-        config_actual["recetas"][idx_existente] = receta_dict
-        msg = f"Receta '{nom}' actualizada con éxito."
+            # Si se le cambió el nombre y era la receta activa, actualizar nombre en config
+            if config_actual.get("receta_activa") == _receta_en_edicion_nombre_original:
+                config_actual["receta_activa"] = nom
+                
+            msg = f"Receta '{nom}' actualizada con éxito."
+            _receta_en_edicion_nombre_original = None
+        else:
+            receta_dict["cero_guardado_x"] = 0.0
+            receta_dict["cero_guardado_y"] = 0.0
+            receta_dict["cero_calibrado"] = False
+            receta_dict["corridas"] = 0
+            recetas_lista.append(receta_dict)
+            msg = f"Receta '{nom}' guardada con éxito."
+            _receta_en_edicion_nombre_original = None
+            
     else:
-        receta_dict["cero_guardado_x"] = 0.0
-        receta_dict["cero_guardado_y"] = 0.0
-        receta_dict["cero_calibrado"] = False
-        receta_dict["corridas"] = 0
-        if "recetas" not in config_actual:
-            config_actual["recetas"] = []   
-        config_actual["recetas"].append(receta_dict)
-        msg = f"Nueva receta '{nom}' registrada con éxito."
+        # Caso 2: Es una receta nueva -> Validar límite máximo de 99 recetas
+        idx_existente = -1
+        for i, r in enumerate(recetas_lista):
+            if r.get("nombre") == nom:
+                idx_existente = i
+                break
+                
+        if idx_existente >= 0:
+            receta_previa = recetas_lista[idx_existente]
+            receta_dict["cero_guardado_x"] = receta_previa.get("cero_guardado_x", 0.0)
+            receta_dict["cero_guardado_y"] = receta_previa.get("cero_guardado_y", 0.0)
+            receta_dict["cero_calibrado"] = receta_previa.get("cero_calibrado", False)
+            receta_dict["corridas"] = receta_previa.get("corridas", 0)
+            recetas_lista[idx_existente] = receta_dict
+            msg = f"Receta '{nom}' actualizada con éxito."
+        else:
+            if len(recetas_lista) >= 99:
+                messagebox.showwarning(
+                    "Límite de Recetas",
+                    "Se ha alcanzado el límite máximo de 99 recetas configuradas en el sistema.\n"
+                    "Para agregar una nueva, debe eliminar o configurar alguna existente.",
+                    parent=ventana
+                )
+                return
+            receta_dict["cero_guardado_x"] = 0.0
+            receta_dict["cero_guardado_y"] = 0.0
+            receta_dict["cero_calibrado"] = False
+            receta_dict["corridas"] = 0
+            recetas_lista.append(receta_dict)
+            msg = f"Nueva receta '{nom}' registrada con éxito ({len(recetas_lista)}/99)."
         
+    config_actual["recetas"] = recetas_lista
     guardar_configuracion()
     
     nombres_actuales = [r["nombre"] for r in config_actual["recetas"]]
     if 'option_receta' in globals():
         option_receta.configure(values=nombres_actuales)
+        if config_actual.get("receta_activa") == nom:
+            option_receta.set(nom)
         
     if config_actual.get("receta_activa") == nom:
-        cargar_receta_por_nombre(nom)
+        cargar_receta_por_nombre(nom, mostrar_modal_aviso=False)
         
+    limpiar_campos_receta()
     refrescar_lista_recetas_admin()
-    messagebox.showinfo("Receta Guardada", msg)
+    messagebox.showinfo("Receta Guardada", msg, parent=ventana)
     lbl_estado.configure(text=f"✓ {msg}", text_color=COLOR_OK)
 
 btn_guardar_rec = ctk.CTkButton(
@@ -6546,6 +6620,20 @@ btn_guardar_rec = ctk.CTkButton(
     command=guardar_o_actualizar_receta
 )
 btn_guardar_rec.pack(side="left", padx=(0, 8))
+
+btn_cancelar_edicion = ctk.CTkButton(
+    f_rec_btns,
+    text="✕ Cancelar Edición",
+    font=(FONT_MAIN, 11),
+    fg_color="#FEE2E2",
+    hover_color="#FECACA",
+    text_color="#DC2626",
+    corner_radius=6,
+    height=34,
+    command=limpiar_campos_receta
+)
+btn_cancelar_edicion.pack(side="left", padx=(0, 8))
+btn_cancelar_edicion.pack_forget()
 
 btn_limpiar_rec = ctk.CTkButton(
     f_rec_btns,
@@ -6604,9 +6692,18 @@ f_rec_items_container = ctk.CTkFrame(frame_tabla_rec, fg_color="transparent")
 f_rec_items_container.pack(fill="both", expand=True, padx=1, pady=1)
 
 def editar_receta_formulario(r):
-    global _mostrar_form_rec
+    global _mostrar_form_rec, _receta_en_edicion_nombre_original
+    _receta_en_edicion_nombre_original = r.get("nombre", "")
     if not _mostrar_form_rec:
         alternar_mostrar_form_receta()
+        
+    if 'lbl_form_rec_titulo' in globals():
+        lbl_form_rec_titulo.configure(text=f"✏️ Configurar Receta: '{_receta_en_edicion_nombre_original}'", text_color="#1E3A8A")
+    if 'btn_guardar_rec' in globals():
+        btn_guardar_rec.configure(text="💾 Actualizar Receta", fg_color="#166534", hover_color="#15803D")
+    if 'btn_cancelar_edicion' in globals():
+        btn_cancelar_edicion.pack(side="left", padx=(0, 8))
+        
     entry_rec_nom.delete(0, tk.END)
     entry_rec_nom.insert(0, r.get("nombre", ""))
     entry_rec_pieza.delete(0, tk.END)
@@ -6624,27 +6721,43 @@ def editar_receta_formulario(r):
     entry_rec_img.delete(0, tk.END)
     entry_rec_img.insert(0, str(r.get("imagen", "")))
     actualizar_preview_formulario_receta(r.get("imagen", ""))
+    
+    try:
+        view_recetas._parent_canvas.yview_moveto(0.0)
+    except Exception:
+        pass
+        
+    ventana.after(50, refrescar_lista_recetas_admin)
 
 def eliminar_receta_accion(r_nom):
+    global _receta_en_edicion_nombre_original
     if len(config_actual.get("recetas", [])) <= 1:
-        messagebox.showwarning("Atención", "Debe existir al menos una receta en el sistema.")
+        messagebox.showwarning("Atención", "Debe existir al menos una receta en el sistema.", parent=ventana)
         return
-    if messagebox.askyesno("Confirmar Eliminación", f"¿Está seguro de eliminar la receta '{r_nom}'?"):
+    if messagebox.askyesno("Confirmar Eliminación", f"¿Está seguro de eliminar la receta '{r_nom}'?", parent=ventana):
         config_actual["recetas"] = [r for r in config_actual["recetas"] if r.get("nombre") != r_nom]
+        if _receta_en_edicion_nombre_original == r_nom:
+            limpiar_campos_receta()
+            
         if config_actual.get("receta_activa") == r_nom:
             config_actual["receta_activa"] = config_actual["recetas"][0]["nombre"]
-            cargar_receta_por_nombre(config_actual["receta_activa"])
+            cargar_receta_por_nombre(config_actual["receta_activa"], mostrar_modal_aviso=False)
+            
         guardar_configuracion()
         nombres_actuales = [r["nombre"] for r in config_actual["recetas"]]
         if 'option_receta' in globals():
             option_receta.configure(values=nombres_actuales)
             option_receta.set(config_actual["receta_activa"])
         refrescar_lista_recetas_admin()
-        messagebox.showinfo("Eliminada", f"Receta '{r_nom}' eliminada correctamente.")
+        messagebox.showinfo("Eliminada", f"Receta '{r_nom}' eliminada correctamente ({len(config_actual['recetas'])}/99).", parent=ventana)
 
 def refrescar_lista_recetas_admin():
     for w in f_rec_items_container.winfo_children():
         w.destroy()
+        
+    recetas_actuales = config_actual.get("recetas", [])
+    if 'lbl_contador_recetas' in globals():
+        lbl_contador_recetas.configure(text=f"Recetas: {len(recetas_actuales)}/99")
         
     receta_activa_actual = config_actual.get("receta_activa", "")
     filtro_txt = entry_search_receta.get().lower().strip() if 'entry_search_receta' in globals() else ""
@@ -6652,22 +6765,27 @@ def refrescar_lista_recetas_admin():
     fechas_mod = ["25/08/2026 10:42", "24/08/2026 14:15", "22/08/2026 11:30", "20/08/2026 09:10"]
     prog_codes = ["P01", "P02", "P03", "P04"]
     
-    for idx, r in enumerate(config_actual.get("recetas", [])):
+    for idx, r in enumerate(recetas_actuales):
         nom = r.get("nombre", "Receta")
         if filtro_txt and filtro_txt not in nom.lower() and filtro_txt not in r.get("modelo", "").lower():
             continue
             
         es_activa = (nom == receta_activa_actual)
-        bg_fila = "#FFFFFF" if idx % 2 == 0 else "#F8FAFC"
+        en_edicion = (nom == _receta_en_edicion_nombre_original)
         
-        f_row = ctk.CTkFrame(f_rec_items_container, fg_color=bg_fila, height=40, corner_radius=0)
+        bg_fila = "#EFF6FF" if en_edicion else ("#FFFFFF" if idx % 2 == 0 else "#F8FAFC")
+        bdr_color = "#3B82F6" if en_edicion else "transparent"
+        bdr_w = 1 if en_edicion else 0
+        
+        f_row = ctk.CTkFrame(f_rec_items_container, fg_color=bg_fila, border_color=bdr_color, border_width=bdr_w, height=40, corner_radius=0)
         f_row.pack(fill="x", padx=0, pady=1)
         
         for c_i, w in enumerate(col_weights_rec):
             f_row.columnconfigure(c_i, weight=w, uniform="col_rec")
             
         # 1. NOMBRE
-        ctk.CTkLabel(f_row, text=nom, font=(FONT_MAIN, 11, "bold"), text_color=COLOR_KOSTAL_DARK).grid(row=0, column=0, sticky="ew", padx=2, pady=4)
+        nom_txt = f"✏️ {nom}" if en_edicion else nom
+        ctk.CTkLabel(f_row, text=nom_txt, font=(FONT_MAIN, 11, "bold"), text_color="#1E3A8A" if en_edicion else COLOR_KOSTAL_DARK).grid(row=0, column=0, sticky="ew", padx=2, pady=4)
         # 2. MODELO
         ctk.CTkLabel(f_row, text=r.get("modelo", "KSL-001"), font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=1, sticky="ew", padx=2, pady=4)
         # 3. PROGRAMA
@@ -6677,16 +6795,24 @@ def refrescar_lista_recetas_admin():
         dim_txt = f"{r.get('filas', 3)}×{r.get('cols', 5)}"
         ctk.CTkLabel(f_row, text=dim_txt, font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=3, sticky="ew", padx=2, pady=4)
         # 5. DISTANCIA CENTRO EN X
-        ctk.CTkLabel(f_row, text=f"{float(r.get('delta_x', 25.0)):.2f} mm", font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=4, sticky="ew", padx=2, pady=4)
+        try:
+            dx_num = float(str(r.get('delta_x', 25.0)).replace(',', '.'))
+        except Exception:
+            dx_num = 25.0
+        ctk.CTkLabel(f_row, text=f"{dx_num:.2f} mm", font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=4, sticky="ew", padx=2, pady=4)
         # 6. DISTANCIA CENTRO EN Y
-        ctk.CTkLabel(f_row, text=f"{float(r.get('delta_y', 30.0)):.2f} mm", font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=5, sticky="ew", padx=2, pady=4)
+        try:
+            dy_num = float(str(r.get('delta_y', 30.0)).replace(',', '.'))
+        except Exception:
+            dy_num = 30.0
+        ctk.CTkLabel(f_row, text=f"{dy_num:.2f} mm", font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=5, sticky="ew", padx=2, pady=4)
         # 7. ÚLTIMA MODIFICACIÓN
         f_mod = fechas_mod[idx % len(fechas_mod)]
         ctk.CTkLabel(f_row, text=f_mod, font=(FONT_MONO, 10), text_color=TEXT_MUTED).grid(row=0, column=6, sticky="ew", padx=2, pady=4)
         # 8. ESTADO (Pill Activo / Inactivo)
-        st_pill_bg = "#DCFCE7" if es_activa or idx < 2 else "#F1F5F9"
-        st_pill_fg = "#15803D" if es_activa or idx < 2 else "#64748B"
-        st_pill_txt = "● Activo" if es_activa or idx < 2 else "● Inactivo"
+        st_pill_bg = "#DCFCE7" if es_activa else "#F1F5F9"
+        st_pill_fg = "#15803D" if es_activa else "#64748B"
+        st_pill_txt = "● Activo" if es_activa else "● Inactivo"
         f_st = ctk.CTkFrame(f_row, fg_color="transparent")
         f_st.grid(row=0, column=7, sticky="ew", padx=2, pady=4)
         ctk.CTkLabel(f_st, text=st_pill_txt, font=(FONT_MAIN, 10, "bold"), fg_color=st_pill_bg, text_color=st_pill_fg, corner_radius=10, padx=8, pady=2).pack()
@@ -6700,13 +6826,13 @@ def refrescar_lista_recetas_admin():
             font=(FONT_MAIN, 10, "bold"),
             width=88,
             height=28,
-            fg_color="#FFFFFF",
+            fg_color="#EFF6FF" if en_edicion else "#FFFFFF",
             hover_color=BORDER_LIGHT,
             text_color="#1E3A8A",
             border_width=1,
-            border_color=BORDER_CARD,
+            border_color="#93C5FD" if en_edicion else BORDER_CARD,
             corner_radius=4,
-            command=lambda rec=r: (cargar_receta_por_nombre(rec.get("nombre")), editar_receta_formulario(rec), refrescar_lista_recetas_admin())
+            command=lambda rec=r: editar_receta_formulario(rec)
         )
         btn_cfg.pack(side="left", padx=2)
         
@@ -6727,6 +6853,25 @@ def refrescar_lista_recetas_admin():
         btn_del.pack(side="left", padx=2)
 
 refrescar_lista_recetas_admin()
+
+# Habilitar desplazamiento táctil fluido (Touch Drag) en el catálogo de recetas
+def habilitar_scroll_tactil_recetas():
+    try:
+        c = view_recetas._parent_canvas
+        _touch_s = {"y": 0}
+        def _on_p(e):
+            _touch_s["y"] = e.y_root
+        def _on_m(e):
+            dy = _touch_s["y"] - e.y_root
+            _touch_s["y"] = e.y_root
+            if dy != 0:
+                c.yview_scroll(int(dy), "units")
+        c.bind("<ButtonPress-1>", _on_p, add="+")
+        c.bind("<B1-Motion>", _on_m, add="+")
+    except Exception as e:
+        print(f"Scroll táctil no disponible en recetas: {e}")
+
+habilitar_scroll_tactil_recetas()
 
 # --- VISTA 3: GESTIÓN DE USUARIOS ---
 # --- VISTA 3: GESTIÓN DE USUARIOS (IMAGEN 2) ---
