@@ -679,9 +679,13 @@ def actualizar_coordenadas_matriz():
 
     patron = config_actual.get("patron_pintado", "vertical")
     if patron == "vertical":
-        # Recorrido vertical: columna por columna (de arriba hacia abajo en cada columna)
+        # Recorrido vertical en serpiente continua (siguiendo las flechas del usuario):
+        # Columna 0 (par): baja de arriba hacia abajo (↓)
+        # En la base se desplaza a la derecha (→)
+        # Columna 1 (impar): sube de abajo hacia arriba (↑)
         for c in range(matriz_cols):
-            for r in range(matriz_filas):
+            filas_iter = range(matriz_filas) if (c % 2 == 0) else reversed(range(matriz_filas))
+            for r in filas_iter:
                 x = limitar_coord_x(x0 + dir_x * (c * dx))
                 y = limitar_coord_y(y0 + dir_y * (r * dy))
                 matriz_coordenadas.append((round(x, 2), round(y, 2)))
@@ -5472,7 +5476,8 @@ def al_click_en_pieza_fixture(event):
         for i in range(total_piezas):
             if patron == "vertical":
                 c = i // filas
-                r = i % filas
+                r_idx = i % filas
+                r = r_idx if (c % 2 == 0) else (filas - 1 - r_idx)
             else:
                 r = i // cols
                 c = i % cols
@@ -5562,7 +5567,8 @@ def dibujar_fixture_moderno():
     for i in range(total_piezas):
         if patron == "vertical":
             c = i // filas
-            r = i % filas
+            r_idx = i % filas
+            r = r_idx if (c % 2 == 0) else (filas - 1 - r_idx)
         else:
             r = i // cols
             c = i % cols
