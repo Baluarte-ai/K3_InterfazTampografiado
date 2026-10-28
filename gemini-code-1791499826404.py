@@ -483,7 +483,8 @@ def vincular_nodos_plc():
                 "LISTO": cliente.get_node(ruta_prg + "LISTO"),
                 "NO_LISTO": cliente.get_node(ruta_prg + "NO_LISTO"),
                 "M_ENE": cliente.get_node(ruta_prg + "M_ENE"), 
-                "M_SET": cliente.get_node(ruta_prg + "M_SET"), 
+                "M_SET": cliente.get_node(ruta_prg + "M_SET"),
+                "M_PINTAR": cliente.get_node(ruta_prg + "M_PINTAR"),
                 
                 # Hardware (IoConfig)
                 "ALARM_X": cliente.get_node(ruta_io + "ALARM_X"),
@@ -504,6 +505,16 @@ def vincular_nodos_plc():
                         nodos["S_TAMPO"] = cliente.get_node(ruta_io + "S_TAMPO")
                     except Exception:
                         nodos["S_TAMPO"] = nodos.get("TAMPO", MockNode(False))
+            try:
+                nodos["M_PINTAR"] = cliente.get_node(ruta_prg + "M_PINTAR")
+            except Exception:
+                try:
+                    nodos["M_PINTAR"] = cliente.get_node(ruta_io + "M_PINTAR")
+                except Exception:
+                    try:
+                        nodos["M_PINTAR"] = cliente.get_node(ruta_prg + "M_pintar")
+                    except Exception:
+                        nodos["M_PINTAR"] = MockNode(False)
             return True
         except Exception as e:
             print(f"Error vinculando nodos reales: {e}")
@@ -515,6 +526,7 @@ def vincular_nodos_plc():
         "STOP": MockNode(False),
         "RESET": MockNode(False),
         "PINTAR": MockNode(False),
+        "M_PINTAR": MockNode(False),
         "CRUZETA": MockNode(False),
         "MANUAL": MockNode(False),
         "PINTADO": MockNode(False),
@@ -1766,21 +1778,15 @@ _tampo_en_ejecucion = False
 
 def activar_tampo_manual():
     """
-    Activa la marca S.tampo en el PLC WAGO durante 2.0 segundos exactos (True).
+    Activa la marca M_PINTAR / S_TAMPO / TAMPO en el PLC WAGO durante 2.0 segundos exactos (True).
     Al concluir los 2.0 segundos, se desactiva (pasa a False) y el botón se desajusta/restaura.
-    Solo permitido en Modo Manual.
+    Disponible en estado de espera (cuando no hay ciclo activo de pintado) o en Modo Manual.
     """
     global _tampo_en_ejecucion
-    if not estado_manual:
+    if estado_pintar:
         lbl_estado.configure(
-            text="⚠️ 'Activar Tampo' solo está disponible en MODO MANUAL.",
+            text="⚠️ 'Activar Tampo' no está disponible mientras el ciclo de pintado esté en ejecución.",
             text_color=COLOR_WARN
-        )
-        messagebox.showwarning(
-            "Modo Inválido" if idioma_actual == "ES" else "Invalid Mode",
-            "La activación manual de Tampo solo está permitida en MODO MANUAL.\nCambie primero el selector a MODO: MANUAL."
-            if idioma_actual == "ES" else
-            "Manual Tampo triggering is only allowed in MANUAL MODE.\nPlease switch the mode selector to MANUAL first."
         )
         return
 
@@ -1788,8 +1794,8 @@ def activar_tampo_manual():
         return
     _tampo_en_ejecucion = True
 
-    # 1. Poner S_TAMPO y TAMPO en True en el PLC
-    for tag in ["S_TAMPO", "TAMPO"]:
+    # 1. Poner M_PINTAR, S_TAMPO y TAMPO en True en el PLC WAGO
+    for tag in ["M_PINTAR", "S_TAMPO", "TAMPO"]:
         if tag in nodos:
             try:
                 if plc_conectado:
@@ -1813,7 +1819,7 @@ def activar_tampo_manual():
             pass
 
     lbl_estado.configure(
-        text="⚡ Tampo activado: ciclo de 2.0 segundos en ejecución..." if idioma_actual == "ES" else "⚡ Pad activated: 2.0 second cycle running...",
+        text="⚡ Tampo activado (M_PINTAR=ON): ciclo de 2.0 segundos en ejecución..." if idioma_actual == "ES" else "⚡ Pad activated (M_PINTAR=ON): 2.0 second cycle running...",
         text_color=COLOR_WARN
     )
 
@@ -1832,7 +1838,7 @@ def activar_tampo_manual():
     # 3. Al concluir los 2000 ms, desactivar en el PLC (poner en False) y restaurar botón
     def _desactivar_tampo():
         global _tampo_en_ejecucion
-        for tag in ["S_TAMPO", "TAMPO"]:
+        for tag in ["M_PINTAR", "S_TAMPO", "TAMPO"]:
             if tag in nodos:
                 try:
                     if plc_conectado:
@@ -1856,7 +1862,7 @@ def activar_tampo_manual():
                 pass
 
         lbl_estado.configure(
-            text="✓ Tampo completó ciclo de 2 segundos y se desactivó." if idioma_actual == "ES" else "✓ Pad completed 2-second cycle and turned off.",
+            text="✓ Tampo completó ciclo de 2 segundos y se desactivó (M_PINTAR=OFF)." if idioma_actual == "ES" else "✓ Pad completed 2-second cycle and turned off (M_PINTAR=OFF).",
             text_color=COLOR_OK
         )
 
