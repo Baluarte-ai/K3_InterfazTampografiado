@@ -2331,7 +2331,7 @@ def fijar_paso_jog(nuevo_paso):
     """Fija un nuevo paso JOG numérico, actualiza la caja, la configuración y el estilo de botones."""
     global config_actual
     try:
-        val = max(0.05, min(100.0, float(nuevo_paso)))
+        val = max(0.01, min(200.0, float(nuevo_paso)))
         config_actual["paso_jog"] = val
         if 'caja_paso' in globals() and caja_paso:
             caja_paso.delete(0, tk.END)
@@ -2506,10 +2506,13 @@ def abrir_teclado_numerico_paso():
         txt = entry_display.get().strip().replace(",", ".")
         try:
             val = float(txt)
-            fijar_paso_jog(val)
-            dlg.destroy()
+            if 0.01 <= val <= 200.0:
+                fijar_paso_jog(val)
+                dlg.destroy()
+            else:
+                messagebox.showwarning("Rango", "El paso debe estar entre 0.01 y 200 mm.", parent=dlg)
         except ValueError:
-            messagebox.showwarning("Valor Inválido", "Por favor ingrese un número decimal válido para el paso (ej. 1.0, 5.0).", parent=dlg)
+            messagebox.showwarning("Valor Inválido", "Por favor ingrese un número decimal válido para el paso (ej. 1.0, 5.0, 14.5).", parent=dlg)
             
     ctk.CTkButton(
         f_act,
@@ -4794,9 +4797,12 @@ btn_fs_top.pack(side="left", padx=(0, 10), pady=8)
 body_grid = ctk.CTkFrame(frame_operador, fg_color=BG_MAIN, corner_radius=0)
 body_grid.pack(fill="both", expand=True, padx=12, pady=10)
 
-body_grid.columnconfigure(0, weight=26, uniform="side_cols")
-body_grid.columnconfigure(1, weight=48)
-body_grid.columnconfigure(2, weight=26, uniform="side_cols")
+# Columna 0 (Proceso): Ancho optimizado y más compacto
+body_grid.columnconfigure(0, weight=20)
+# Columna 1 (Matriz de Piezas): Mayor amplitud visual
+body_grid.columnconfigure(1, weight=54)
+# Columna 2 (JOG y Mandos): Espacio ergonómico para botones
+body_grid.columnconfigure(2, weight=26)
 body_grid.rowconfigure(0, weight=1)
 
 def crear_card_moderna(parent, titulo=None, btn_widget=None):
@@ -4858,7 +4864,8 @@ f_sel_rec_card = ctk.CTkFrame(
     corner_radius=8, 
     border_width=1, 
     border_color="#CBD5E1", 
-    height=48
+    height=48,
+    cursor="hand2"
 )
 f_sel_rec_card.pack(fill="x")
 f_sel_rec_card.pack_propagate(False)
@@ -4867,7 +4874,8 @@ lbl_sel_rec_nom = ctk.CTkLabel(
     f_sel_rec_card, 
     text=f"📦  {receta_activa_nom}", 
     font=(FONT_MAIN, 13, "bold"), 
-    text_color="#1E3A8A"
+    text_color="#1E3A8A",
+    cursor="hand2"
 )
 lbl_sel_rec_nom.pack(side="left", padx=(12, 6), pady=8)
 
@@ -4884,6 +4892,15 @@ btn_sel_rec_toggle = ctk.CTkButton(
     command=lambda: alternar_selector_recetas()
 )
 btn_sel_rec_toggle.pack(side="right", padx=6, pady=6)
+
+# Enlazar toque en toda el área de la tarjeta para desplegar cómodamente en pantalla táctil
+def _al_tocar_tarjeta_receta(e=None):
+    alternar_selector_recetas()
+
+f_sel_rec_card.bind("<Button-1>", _al_tocar_tarjeta_receta)
+lbl_sel_rec_nom.bind("<Button-1>", _al_tocar_tarjeta_receta)
+if hasattr(f_sel_rec_card, "_canvas") and f_sel_rec_card._canvas:
+    f_sel_rec_card._canvas.bind("<Button-1>", _al_tocar_tarjeta_receta)
 
 # Compatibilidad con option_receta
 option_receta = f_sel_rec_card
@@ -5950,8 +5967,8 @@ btn_step_plus = ctk.CTkButton(
 )
 btn_step_plus.pack(side="right", padx=1)
 
-# Caja de entrada interactiva con sincronización y persistencia (Agrandada a 82x36 con fuente mayor)
-caja_paso = ctk.CTkEntry(f_step_row, width=82, height=36, font=(FONT_MONO, 14, "bold"), justify="center", corner_radius=6)
+# Caja de entrada interactiva con sincronización y persistencia (Ampliada a 110x38 para admitir múltiples dígitos y decimales)
+caja_paso = ctk.CTkEntry(f_step_row, width=110, height=38, font=(FONT_MONO, 14, "bold"), justify="center", corner_radius=6)
 caja_paso.insert(0, str(config_actual.get("paso_jog", "5.0")))
 caja_paso.pack(side="right", padx=2)
 
@@ -5959,7 +5976,7 @@ def _on_caja_paso_change(event=None):
     txt = caja_paso.get().strip().replace(",", ".")
     try:
         v = float(txt)
-        if 0.05 <= v <= 100.0:
+        if 0.01 <= v <= 200.0:
             config_actual["paso_jog"] = v
             guardar_configuracion()
             actualizar_botones_paso_preset(v)
@@ -5967,6 +5984,26 @@ def _on_caja_paso_change(event=None):
         pass
 
 def _on_caja_paso_focusout(event=None):
+    txt = caja_paso.get().strip().replace(",", ".")
+    try:
+        v = float(txt)
+        if 0.01 <= v <= 200.0:
+            config_actual["paso_jog"] = v
+            guardar_configuracion()
+            actualizar_botones_paso_preset(v)
+            caja_paso.delete(0, tk.END)
+            if "." in txt:
+                partes = txt.split('.')
+                dec = partes[1] if len(partes) > 1 else ""
+                if len(dec) == 0:
+                    caja_paso.insert(0, f"{v:g}")
+                else:
+                    caja_paso.insert(0, f"{v:.{min(len(dec), 3)}f}")
+            else:
+                caja_paso.insert(0, f"{v:g}")
+            return
+    except Exception:
+        pass
     v = obtener_paso_jog()
     caja_paso.delete(0, tk.END)
     caja_paso.insert(0, f"{v:g}")
@@ -5976,6 +6013,7 @@ caja_paso.bind("<KeyRelease>", _on_caja_paso_change)
 caja_paso.bind("<FocusOut>", _on_caja_paso_focusout)
 caja_paso.bind("<Return>", lambda e: (ocultar_teclado_nativo(), caja_paso.master.focus_set(), _on_caja_paso_focusout(), "break")[3])
 caja_paso.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), caja_paso.master.focus_set(), _on_caja_paso_focusout(), "break")[3])
+caja_paso.bind("<Double-Button-1>", lambda e: abrir_teclado_numerico_paso())
 
 # Botón reducir paso [-]
 btn_step_minus = ctk.CTkButton(
@@ -6719,69 +6757,69 @@ f_rec_form_grid.pack(fill="x", padx=14, pady=12)
 lbl_form_rec_titulo = ctk.CTkLabel(f_rec_form_grid, text="Formulario de Receta", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_KOSTAL_DARK)
 lbl_form_rec_titulo.grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
 
-ctk.CTkLabel(f_rec_form_grid, text="Nombre Receta:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).grid(row=1, column=0, sticky="w", pady=4)
-entry_rec_nom = ctk.CTkEntry(f_rec_form_grid, width=220, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 11))
+ctk.CTkLabel(f_rec_form_grid, text="Nombre Receta:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).grid(row=1, column=0, sticky="w", pady=6)
+entry_rec_nom = ctk.CTkEntry(f_rec_form_grid, width=260, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MAIN, 13, "bold"))
 entry_rec_nom.insert(0, "Botón A")
-entry_rec_nom.grid(row=1, column=1, sticky="w", padx=6, pady=4)
+entry_rec_nom.grid(row=1, column=1, sticky="w", padx=6, pady=6)
 
-ctk.CTkLabel(f_rec_form_grid, text="Nombre de la Pieza:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).grid(row=1, column=2, sticky="w", padx=(14, 0), pady=4)
-entry_rec_pieza = ctk.CTkEntry(f_rec_form_grid, width=220, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 11))
+ctk.CTkLabel(f_rec_form_grid, text="Nombre de la Pieza:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).grid(row=1, column=2, sticky="w", padx=(14, 0), pady=6)
+entry_rec_pieza = ctk.CTkEntry(f_rec_form_grid, width=260, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MAIN, 13, "bold"))
 entry_rec_pieza.insert(0, "Emblema KOSTAL Gotita")
-entry_rec_pieza.grid(row=1, column=3, sticky="w", padx=6, pady=4)
+entry_rec_pieza.grid(row=1, column=3, sticky="w", padx=6, pady=6)
 
-ctk.CTkLabel(f_rec_form_grid, text="Modelo:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).grid(row=2, column=0, sticky="w", pady=4)
-entry_rec_mod = ctk.CTkEntry(f_rec_form_grid, width=220, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 11))
+ctk.CTkLabel(f_rec_form_grid, text="Modelo:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).grid(row=2, column=0, sticky="w", pady=6)
+entry_rec_mod = ctk.CTkEntry(f_rec_form_grid, width=260, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MAIN, 13, "bold"))
 entry_rec_mod.insert(0, "KSL-001")
-entry_rec_mod.grid(row=2, column=1, sticky="w", padx=6, pady=4)
+entry_rec_mod.grid(row=2, column=1, sticky="w", padx=6, pady=6)
 
-ctk.CTkLabel(f_rec_form_grid, text="Velocidad (mm/s):", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).grid(row=2, column=2, sticky="w", padx=(14, 0), pady=4)
-entry_rec_vel = ctk.CTkEntry(f_rec_form_grid, width=220, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 11))
+ctk.CTkLabel(f_rec_form_grid, text="Velocidad (mm/s):", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).grid(row=2, column=2, sticky="w", padx=(14, 0), pady=6)
+entry_rec_vel = ctk.CTkEntry(f_rec_form_grid, width=260, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MAIN, 13, "bold"))
 entry_rec_vel.insert(0, "115")
-entry_rec_vel.grid(row=2, column=3, sticky="w", padx=6, pady=4)
+entry_rec_vel.grid(row=2, column=3, sticky="w", padx=6, pady=6)
 
-ctk.CTkLabel(f_rec_form_grid, text="Tamaño Matriz:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).grid(row=3, column=0, sticky="w", pady=4)
+ctk.CTkLabel(f_rec_form_grid, text="Tamaño Matriz:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).grid(row=3, column=0, sticky="w", pady=6)
 f_mat_select = ctk.CTkFrame(f_rec_form_grid, fg_color="transparent")
-f_mat_select.grid(row=3, column=1, sticky="w", padx=6, pady=4)
-ctk.CTkLabel(f_mat_select, text="Filas:", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).pack(side="left")
-entry_rec_filas = ctk.CTkEntry(f_mat_select, width=55, height=28, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 11), justify="center")
+f_mat_select.grid(row=3, column=1, sticky="w", padx=6, pady=6)
+ctk.CTkLabel(f_mat_select, text="Filas:", font=(FONT_MAIN, 11), text_color=TEXT_MUTED).pack(side="left")
+entry_rec_filas = ctk.CTkEntry(f_mat_select, width=75, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MONO, 14, "bold"), justify="center")
 entry_rec_filas.insert(0, "3")
 entry_rec_filas.pack(side="left", padx=4)
 entry_rec_filas.set = lambda v: (entry_rec_filas.delete(0, tk.END), entry_rec_filas.insert(0, str(v)))
 option_rec_filas = entry_rec_filas
 
-ctk.CTkLabel(f_mat_select, text="Cols:", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).pack(side="left", padx=(6, 0))
-entry_rec_cols = ctk.CTkEntry(f_mat_select, width=55, height=28, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 11), justify="center")
+ctk.CTkLabel(f_mat_select, text="Cols:", font=(FONT_MAIN, 11), text_color=TEXT_MUTED).pack(side="left", padx=(8, 0))
+entry_rec_cols = ctk.CTkEntry(f_mat_select, width=75, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MONO, 14, "bold"), justify="center")
 entry_rec_cols.insert(0, "5")
 entry_rec_cols.pack(side="left", padx=4)
 entry_rec_cols.set = lambda v: (entry_rec_cols.delete(0, tk.END), entry_rec_cols.insert(0, str(v)))
 option_rec_cols = entry_rec_cols
 
-ctk.CTkLabel(f_rec_form_grid, text="Dist. Centro a Centro:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).grid(row=3, column=2, sticky="w", padx=(14, 0), pady=4)
+ctk.CTkLabel(f_rec_form_grid, text="Dist. Centro a Centro:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).grid(row=3, column=2, sticky="w", padx=(14, 0), pady=6)
 f_dist_inputs = ctk.CTkFrame(f_rec_form_grid, fg_color="transparent")
-f_dist_inputs.grid(row=3, column=3, sticky="w", padx=6, pady=4)
-ctk.CTkLabel(f_dist_inputs, text="ΔX (mm):", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).pack(side="left")
-entry_rec_dx = ctk.CTkEntry(f_dist_inputs, width=65, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 11))
+f_dist_inputs.grid(row=3, column=3, sticky="w", padx=6, pady=6)
+ctk.CTkLabel(f_dist_inputs, text="ΔX (mm):", font=(FONT_MAIN, 11), text_color=TEXT_MUTED).pack(side="left")
+entry_rec_dx = ctk.CTkEntry(f_dist_inputs, width=85, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MONO, 13, "bold"), justify="center")
 entry_rec_dx.insert(0, "42.0")
 entry_rec_dx.pack(side="left", padx=4)
-ctk.CTkLabel(f_dist_inputs, text="ΔY (mm):", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).pack(side="left", padx=(6, 0))
-entry_rec_dy = ctk.CTkEntry(f_dist_inputs, width=65, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 11))
+ctk.CTkLabel(f_dist_inputs, text="ΔY (mm):", font=(FONT_MAIN, 11), text_color=TEXT_MUTED).pack(side="left", padx=(8, 0))
+entry_rec_dy = ctk.CTkEntry(f_dist_inputs, width=85, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MONO, 13, "bold"), justify="center")
 entry_rec_dy.insert(0, "36.0")
 entry_rec_dy.pack(side="left", padx=4)
 
 # Fila 4: Coordenadas iniciales de origen (Set 0 / Pieza 01)
-ctk.CTkLabel(f_rec_form_grid, text="Coord. Inicial (Set 0):", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).grid(row=4, column=0, sticky="w", pady=4)
+ctk.CTkLabel(f_rec_form_grid, text="Coord. Inicial (Set 0):", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).grid(row=4, column=0, sticky="w", pady=6)
 f_coord_inputs = ctk.CTkFrame(f_rec_form_grid, fg_color="transparent")
-f_coord_inputs.grid(row=4, column=1, sticky="w", padx=6, pady=4)
-ctk.CTkLabel(f_coord_inputs, text="X0 (mm):", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).pack(side="left")
-entry_rec_x0 = ctk.CTkEntry(f_coord_inputs, width=65, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 11))
+f_coord_inputs.grid(row=4, column=1, sticky="w", padx=6, pady=6)
+ctk.CTkLabel(f_coord_inputs, text="X0 (mm):", font=(FONT_MAIN, 11), text_color=TEXT_MUTED).pack(side="left")
+entry_rec_x0 = ctk.CTkEntry(f_coord_inputs, width=85, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MONO, 13, "bold"), justify="center")
 entry_rec_x0.insert(0, "0.00")
 entry_rec_x0.pack(side="left", padx=4)
-ctk.CTkLabel(f_coord_inputs, text="Y0 (mm):", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).pack(side="left", padx=(6, 0))
-entry_rec_y0 = ctk.CTkEntry(f_coord_inputs, width=65, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 11))
+ctk.CTkLabel(f_coord_inputs, text="Y0 (mm):", font=(FONT_MAIN, 11), text_color=TEXT_MUTED).pack(side="left", padx=(8, 0))
+entry_rec_y0 = ctk.CTkEntry(f_coord_inputs, width=85, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MONO, 13, "bold"), justify="center")
 entry_rec_y0.insert(0, "0.00")
 entry_rec_y0.pack(side="left", padx=4)
 
-ctk.CTkLabel(f_rec_form_grid, text="ℹ️ Coordenada de origen (P01) guardada al hacer 'Set 0' en JOG.", font=(FONT_MAIN, 9), text_color="#0369A1").grid(row=4, column=2, columnspan=2, sticky="w", padx=(14, 0), pady=4)
+ctk.CTkLabel(f_rec_form_grid, text="ℹ️ Coordenada de origen (P01) guardada al hacer 'Set 0' en JOG.", font=(FONT_MAIN, 10), text_color="#0369A1").grid(row=4, column=2, columnspan=2, sticky="w", padx=(14, 0), pady=6)
 
 # Fila 5: Imagen de la Pieza
 ctk.CTkLabel(f_rec_form_grid, text="Imagen de la Pieza:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).grid(row=5, column=0, sticky="w", pady=4)
@@ -6990,41 +7028,41 @@ def guardar_o_actualizar_receta():
 btn_guardar_rec = ctk.CTkButton(
     f_rec_btns,
     text="💾 Guardar Receta",
-    font=(FONT_MAIN, 11, "bold"),
+    font=(FONT_MAIN, 12, "bold"),
     fg_color=COLOR_KOSTAL_NAVY,
     hover_color=COLOR_KOSTAL_LIGHT,
     text_color="white",
-    corner_radius=6,
-    height=34,
+    corner_radius=8,
+    height=42,
     command=guardar_o_actualizar_receta
 )
-btn_guardar_rec.pack(side="left", padx=(0, 8))
+btn_guardar_rec.pack(side="left", padx=(0, 10))
 
 btn_cancelar_edicion = ctk.CTkButton(
     f_rec_btns,
     text="✕ Cancelar Edición",
-    font=(FONT_MAIN, 11),
+    font=(FONT_MAIN, 12, "bold"),
     fg_color="#FEE2E2",
     hover_color="#FECACA",
     text_color="#DC2626",
-    corner_radius=6,
-    height=34,
+    corner_radius=8,
+    height=42,
     command=limpiar_campos_receta
 )
-btn_cancelar_edicion.pack(side="left", padx=(0, 8))
+btn_cancelar_edicion.pack(side="left", padx=(0, 10))
 btn_cancelar_edicion.pack_forget()
 
 btn_limpiar_rec = ctk.CTkButton(
     f_rec_btns,
     text="🔄 Limpiar",
-    font=(FONT_MAIN, 11),
+    font=(FONT_MAIN, 12, "bold"),
     fg_color="#FFFFFF",
     hover_color=BORDER_LIGHT,
     text_color=TEXT_PRIMARY,
     border_width=1,
     border_color=BORDER_CARD,
-    corner_radius=6,
-    height=34,
+    corner_radius=8,
+    height=42,
     command=limpiar_campos_receta
 )
 btn_limpiar_rec.pack(side="left")
