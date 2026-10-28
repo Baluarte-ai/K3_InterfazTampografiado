@@ -5010,251 +5010,58 @@ def fila_info(parent, label, val, c_val=TEXT_PRIMARY, mono=False):
 f_sel_rec = ctk.CTkFrame(f_proc_b, fg_color="transparent")
 f_sel_rec.pack(fill="x", pady=(2, 6))
 
-lbl_rec_title = ctk.CTkLabel(f_sel_rec, text="Receta / Jig Activo:", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_KOSTAL_NAVY)
-lbl_rec_title.pack(anchor="w", pady=(0, 3))
+f_sel_rec_hdr = ctk.CTkFrame(f_sel_rec, fg_color="transparent")
+f_sel_rec_hdr.pack(fill="x", pady=(0, 3))
+
+lbl_rec_title = ctk.CTkLabel(f_sel_rec_hdr, text="Receta / Jig Activo:", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_KOSTAL_NAVY)
+lbl_rec_title.pack(side="left")
+
+btn_ver_jigs = ctk.CTkButton(
+    f_sel_rec_hdr,
+    text="🔍 Ver Jigs",
+    font=(FONT_MAIN, 10, "bold"),
+    width=74,
+    height=24,
+    fg_color="#EFF6FF",
+    hover_color="#DBEAFE",
+    text_color="#1E40AF",
+    border_width=1,
+    border_color="#BFDBFE",
+    corner_radius=4,
+    command=lambda: abrir_dialogo_seleccion_jig()
+)
+btn_ver_jigs.pack(side="right")
 
 lista_nom_recetas = [r.get("nombre", "") for r in config_actual.get("recetas", [])] or ["Receta Base"]
 receta_activa_nom = config_actual.get("receta_activa", lista_nom_recetas[0])
 rec_obj_activa = next((r for r in config_actual.get("recetas", []) if r.get("nombre") == receta_activa_nom), config_actual["recetas"][0] if config_actual.get("recetas") else {})
 
-# Tarjeta de selección de receta principal (Agrandada para toque táctil ergonómico)
-f_sel_rec_card = ctk.CTkFrame(
-    f_sel_rec, 
-    fg_color="#FFFFFF", 
-    corner_radius=8, 
-    border_width=1, 
-    border_color="#CBD5E1", 
-    height=48,
-    cursor="hand2"
-)
-f_sel_rec_card.pack(fill="x")
-f_sel_rec_card.pack_propagate(False)
+# Selector desplegable nativo de recetas (Agrandado para uso táctil ergonómico)
+f_opt_border = ctk.CTkFrame(f_sel_rec, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color="#CBD5E1")
+f_opt_border.pack(fill="x")
 
-lbl_sel_rec_nom = ctk.CTkLabel(
-    f_sel_rec_card, 
-    text=f"📦  {receta_activa_nom}", 
-    font=(FONT_MAIN, 13, "bold"), 
+option_receta = ctk.CTkOptionMenu(
+    f_opt_border,
+    values=lista_nom_recetas,
+    command=lambda val: cargar_receta_por_nombre(val),
+    fg_color="#FFFFFF",
+    button_color="#F1F5F9",
+    button_hover_color="#E2E8F0",
     text_color="#1E3A8A",
-    cursor="hand2"
+    dropdown_fg_color="#FFFFFF",
+    dropdown_text_color="#0F172A",
+    dropdown_hover_color="#EFF6FF",
+    corner_radius=8,
+    height=46,
+    font=(FONT_MAIN, 13, "bold"),
+    dropdown_font=(FONT_MAIN, 12, "bold")
 )
-lbl_sel_rec_nom.pack(side="left", padx=(12, 6), pady=8)
+option_receta.set(receta_activa_nom)
+option_receta.pack(fill="x", padx=1, pady=1)
 
-btn_sel_rec_toggle = ctk.CTkButton(
-    f_sel_rec_card, 
-    text="▼", 
-    width=44, 
-    height=36, 
-    font=(FONT_MAIN, 14, "bold"), 
-    fg_color="#F1F5F9", 
-    hover_color="#E2E8F0", 
-    text_color="#1E3A8A", 
-    corner_radius=6, 
-    command=lambda: alternar_selector_recetas()
-)
-btn_sel_rec_toggle.pack(side="right", padx=6, pady=6)
-
-# Enlazar toque en toda el área de la tarjeta para desplegar cómodamente en pantalla táctil
-def _al_tocar_tarjeta_receta(e=None):
-    alternar_selector_recetas()
-
-f_sel_rec_card.bind("<Button-1>", _al_tocar_tarjeta_receta)
-lbl_sel_rec_nom.bind("<Button-1>", _al_tocar_tarjeta_receta)
-if hasattr(f_sel_rec_card, "_canvas") and f_sel_rec_card._canvas:
-    f_sel_rec_card._canvas.bind("<Button-1>", _al_tocar_tarjeta_receta)
-
-# Compatibilidad con option_receta
-option_receta = f_sel_rec_card
-def _opt_set(v):
-    lbl_sel_rec_nom.configure(text=f"📦  {v}")
-    if 'actualizar_lista_selector_recetas' in globals():
-        actualizar_lista_selector_recetas()
-def _opt_cfg(**kw):
-    if 'actualizar_lista_selector_recetas' in globals():
-        actualizar_lista_selector_recetas()
-option_receta.set = _opt_set
-option_receta.configure = _opt_cfg
-
-# Contenedor 1: Información Normal de Proceso (se oculta al desplegar el selector de modelos)
+# Contenedor Información Normal de Proceso (fijo y permanente)
 f_proc_info_normal = ctk.CTkFrame(f_proc_b, fg_color="transparent")
 f_proc_info_normal.pack(fill="x")
-
-# Contenedor 2: Pantalla Desplegable de Modelos y Recetas (Fondo totalmente blanco, cubre todo el recuadro)
-f_proc_selector_recetas = ctk.CTkFrame(f_proc_b, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color="#CBD5E1")
-
-f_sel_top_hdr = ctk.CTkFrame(f_proc_selector_recetas, fg_color="#F8FAFC", corner_radius=6, height=38)
-f_sel_top_hdr.pack(fill="x", padx=6, pady=(6, 4))
-
-ctk.CTkLabel(
-    f_sel_top_hdr,
-    text="📑 SELECCIONE EL MODELO / RECETA:",
-    font=(FONT_MAIN, 11, "bold"),
-    text_color=COLOR_KOSTAL_NAVY
-).pack(side="left", padx=10, pady=6)
-
-btn_cerrar_sel_rec = ctk.CTkButton(
-    f_sel_top_hdr,
-    text="✕ Cerrar",
-    font=(FONT_MAIN, 10, "bold"),
-    width=68,
-    height=28,
-    fg_color="#FFFFFF",
-    hover_color="#F1F5F9",
-    text_color="#64748B",
-    border_width=1,
-    border_color="#CBD5E1",
-    corner_radius=4,
-    command=lambda: alternar_selector_recetas(forzar_cerrar=True)
-)
-btn_cerrar_sel_rec.pack(side="right", padx=6, pady=4)
-
-f_sel_scroll = ctk.CTkScrollableFrame(f_proc_selector_recetas, fg_color="#FFFFFF", height=295)
-f_sel_scroll.pack(fill="both", expand=True, padx=6, pady=(0, 6))
-
-try:
-    c_s = f_sel_scroll._parent_canvas
-    _ts = {"y": 0}
-    def _ts_p(e):
-        _ts["y"] = e.y_root
-    def _ts_m(e):
-        dy = _ts["y"] - e.y_root
-        _ts["y"] = e.y_root
-        if dy != 0:
-            c_s.yview_scroll(int(dy), "units")
-    c_s.bind("<ButtonPress-1>", _ts_p, add="+")
-    c_s.bind("<B1-Motion>", _ts_m, add="+")
-except Exception:
-    pass
-
-def actualizar_lista_selector_recetas():
-    for w in f_sel_scroll.winfo_children():
-        w.destroy()
-        
-    recetas_disponibles = config_actual.get("recetas", [])
-    receta_activa_actual = config_actual.get("receta_activa", "")
-    
-    for r in recetas_disponibles:
-        nom_r = str(r.get("nombre", "")).strip() or "Receta Base"
-        mod_r = str(r.get("modelo", "")).strip() or "—"
-        pz_r = str(r.get("pieza", "")).strip() or "—"
-        try:
-            filas_r = int(r.get("filas", 3))
-            cols_r = int(r.get("cols", 5))
-            pzs_r = int(r.get("piezas", filas_r * cols_r))
-        except Exception:
-            filas_r, cols_r, pzs_r = 3, 5, 15
-        
-        es_activa = (nom_r == receta_activa_actual)
-        
-        bg_card = "#EFF6FF" if es_activa else "#FFFFFF"
-        bdr_col = "#2563EB" if es_activa else "#CBD5E1"
-        bdr_w = 2 if es_activa else 1
-        
-        f_card = ctk.CTkFrame(
-            f_sel_scroll, 
-            fg_color=bg_card, 
-            corner_radius=8, 
-            border_width=bdr_w, 
-            border_color=bdr_col,
-            cursor="hand2"
-        )
-        f_card.pack(fill="x", pady=4, padx=3)
-        
-        # 1. Empaquetar f_act a la derecha PRIMERO para evitar que f_info lo aplaste a 1x1
-        f_act = ctk.CTkFrame(f_card, fg_color="transparent")
-        f_act.pack(side="right", padx=(4, 10), pady=8)
-        
-        if es_activa:
-            ctk.CTkLabel(
-                f_act,
-                text="✓ ACTIVA",
-                font=(FONT_MAIN, 11, "bold"),
-                fg_color="#DCFCE7",
-                text_color="#15803D",
-                corner_radius=6,
-                padx=10,
-                pady=5
-            ).pack()
-        else:
-            btn_sel = ctk.CTkButton(
-                f_act,
-                text="Seleccionar",
-                font=(FONT_MAIN, 11, "bold"),
-                width=92,
-                height=34,
-                fg_color=COLOR_KOSTAL_NAVY,
-                hover_color=COLOR_KOSTAL_LIGHT,
-                text_color="white",
-                corner_radius=6,
-                command=lambda val=nom_r: _seleccionar_receta_desde_panel(val)
-            )
-            btn_sel.pack()
-            
-        # 2. Empaquetar f_info a la izquierda después
-        f_info = ctk.CTkFrame(f_card, fg_color="transparent")
-        f_info.pack(side="left", fill="both", expand=True, padx=(10, 4), pady=6)
-        
-        lbl_nom = ctk.CTkLabel(
-            f_info, 
-            text=f"📦  {nom_r}", 
-            font=(FONT_MAIN, 13, "bold"), 
-            text_color="#1E3A8A" if es_activa else "#0F172A",
-            anchor="w"
-        )
-        lbl_nom.pack(fill="x")
-        
-        lbl_sub = ctk.CTkLabel(
-            f_info, 
-            text=f"Modelo: {mod_r} • {pz_r} • {filas_r}×{cols_r} ({pzs_r} Pzs)", 
-            font=(FONT_MAIN, 10), 
-            text_color="#2563EB" if es_activa else "#64748B",
-            anchor="w"
-        )
-        lbl_sub.pack(fill="x", pady=(2, 0))
-        
-        # Enlazar toque en toda la superficie de la tarjeta para selección táctil directa
-        def _bind_click_recursivo(widget, val=nom_r):
-            widget.bind("<Button-1>", lambda e, v=val: _seleccionar_receta_desde_panel(v))
-            for child in widget.winfo_children():
-                if not isinstance(child, ctk.CTkButton):
-                    _bind_click_recursivo(child, val=val)
-                    
-        _bind_click_recursivo(f_card, val=nom_r)
-
-def _seleccionar_receta_desde_panel(nombre_rec):
-    cargar_receta_por_nombre(nombre_rec)
-    lbl_sel_rec_nom.configure(text=f"📦  {nombre_rec}")
-    alternar_selector_recetas(forzar_cerrar=True)
-
-_selector_recetas_abierto = False
-def alternar_selector_recetas(forzar_cerrar=False):
-    global _selector_recetas_abierto
-    if forzar_cerrar:
-        _selector_recetas_abierto = False
-    else:
-        _selector_recetas_abierto = not _selector_recetas_abierto
-        
-    if _selector_recetas_abierto:
-        actualizar_lista_selector_recetas()
-        f_proc_info_normal.pack_forget()
-        if 'card_marcha' in globals():
-            card_marcha.pack_forget()
-        card_proc.pack_configure(fill="both", expand=True)
-        f_proc_selector_recetas.pack(fill="both", expand=True, pady=(4, 0))
-        btn_sel_rec_toggle.configure(text="▲", fg_color="#3B82F6", text_color="#FFFFFF")
-        try:
-            f_sel_scroll._parent_canvas.yview_moveto(0.0)
-        except Exception:
-            pass
-    else:
-        f_proc_selector_recetas.pack_forget()
-        card_proc.pack_configure(fill="x", expand=False)
-        f_proc_info_normal.pack(fill="x")
-        if 'card_marcha' in globals():
-            card_marcha.pack(fill="both", expand=True, pady=(6, 0))
-        btn_sel_rec_toggle.configure(text="▼", fg_color="#F1F5F9", text_color="#1E3A8A")
-
-f_sel_rec_card.bind("<Button-1>", lambda e: alternar_selector_recetas())
-lbl_sel_rec_nom.bind("<Button-1>", lambda e: alternar_selector_recetas())
 
 # Card de Detalles de la Pieza e Imagen de Referencia (dentro de f_proc_info_normal)
 f_pieza_preview = ctk.CTkFrame(f_proc_info_normal, fg_color="#F8FAFC", corner_radius=8, border_width=1, border_color="#E2E8F0")
