@@ -1011,6 +1011,11 @@ def notificar_accion_tutorial(paso_ejecutado, delay_ms=750):
 
 def resaltar_temporalmente_set0_y_home(segundos=6):
     """Ilumina de forma temporal 'Set 0' y 'Ir a home' tras un cambio de Jig."""
+    if 'abrir_desplegable_calibracion' in globals():
+        try:
+            abrir_desplegable_calibracion()
+        except Exception:
+            pass
     widgets = [globals().get("btn_set_cero"), globals().get("btn_ir_home")]
     _resaltar_elementos_interfaz([w for w in widgets if w is not None])
     lbl_estado.configure(
@@ -1045,6 +1050,11 @@ def obtener_info_paso_tutorial(num_paso):
                 "widgets": [globals().get("btn_manual")]
             }
         else:
+            if 'abrir_desplegable_calibracion' in globals():
+                try:
+                    abrir_desplegable_calibracion()
+                except Exception:
+                    pass
             return {
                 "num": 2,
                 "badge": "PASO 2 DE 5: CALIBRACIÓN DEL PUNTO CERO" if es else "STEP 2 OF 5: ZERO POINT CALIBRATION",
@@ -4777,26 +4787,226 @@ lista_nom_recetas = [r.get("nombre", "") for r in config_actual.get("recetas", [
 receta_activa_nom = config_actual.get("receta_activa", lista_nom_recetas[0])
 rec_obj_activa = next((r for r in config_actual.get("recetas", []) if r.get("nombre") == receta_activa_nom), config_actual["recetas"][0] if config_actual.get("recetas") else {})
 
-option_receta = ctk.CTkOptionMenu(
-    f_sel_rec,
-    values=lista_nom_recetas,
-    command=lambda val: cargar_receta_por_nombre(val),
-    fg_color="#FFFFFF",
-    button_color="#E2E8F0",
-    button_hover_color="#CBD5E1",
-    text_color="#1E3A8A",
-    dropdown_fg_color="#FFFFFF",
-    dropdown_text_color="#1E293B",
-    corner_radius=8,
-    height=44,
-    font=(FONT_MAIN, 13, "bold"),
-    dropdown_font=(FONT_MAIN, 13)
+# Tarjeta de selección de receta principal (Agrandada para toque táctil ergonómico)
+f_sel_rec_card = ctk.CTkFrame(
+    f_sel_rec, 
+    fg_color="#FFFFFF", 
+    corner_radius=8, 
+    border_width=1, 
+    border_color="#CBD5E1", 
+    height=48
 )
-option_receta.set(receta_activa_nom)
-option_receta.pack(fill="x")
+f_sel_rec_card.pack(fill="x")
+f_sel_rec_card.pack_propagate(False)
 
-# Card de Detalles de la Pieza e Imagen de Referencia
-f_pieza_preview = ctk.CTkFrame(f_proc_b, fg_color="#F8FAFC", corner_radius=8, border_width=1, border_color="#E2E8F0")
+lbl_sel_rec_nom = ctk.CTkLabel(
+    f_sel_rec_card, 
+    text=f"📦  {receta_activa_nom}", 
+    font=(FONT_MAIN, 13, "bold"), 
+    text_color="#1E3A8A"
+)
+lbl_sel_rec_nom.pack(side="left", padx=(12, 6), pady=8)
+
+btn_sel_rec_toggle = ctk.CTkButton(
+    f_sel_rec_card, 
+    text="▼", 
+    width=44, 
+    height=36, 
+    font=(FONT_MAIN, 14, "bold"), 
+    fg_color="#F1F5F9", 
+    hover_color="#E2E8F0", 
+    text_color="#1E3A8A", 
+    corner_radius=6, 
+    command=lambda: alternar_selector_recetas()
+)
+btn_sel_rec_toggle.pack(side="right", padx=6, pady=6)
+
+# Compatibilidad con option_receta
+option_receta = f_sel_rec_card
+def _opt_set(v):
+    lbl_sel_rec_nom.configure(text=f"📦  {v}")
+    if 'actualizar_lista_selector_recetas' in globals():
+        actualizar_lista_selector_recetas()
+def _opt_cfg(**kw):
+    if 'actualizar_lista_selector_recetas' in globals():
+        actualizar_lista_selector_recetas()
+option_receta.set = _opt_set
+option_receta.configure = _opt_cfg
+
+# Contenedor 1: Información Normal de Proceso (se oculta al desplegar el selector de modelos)
+f_proc_info_normal = ctk.CTkFrame(f_proc_b, fg_color="transparent")
+f_proc_info_normal.pack(fill="x")
+
+# Contenedor 2: Pantalla Desplegable de Modelos y Recetas (Fondo totalmente blanco, cubre todo el recuadro)
+f_proc_selector_recetas = ctk.CTkFrame(f_proc_b, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color="#CBD5E1")
+
+f_sel_top_hdr = ctk.CTkFrame(f_proc_selector_recetas, fg_color="#F8FAFC", corner_radius=6, height=38)
+f_sel_top_hdr.pack(fill="x", padx=6, pady=(6, 4))
+
+ctk.CTkLabel(
+    f_sel_top_hdr,
+    text="📑 SELECCIONE EL MODELO / RECETA:",
+    font=(FONT_MAIN, 11, "bold"),
+    text_color=COLOR_KOSTAL_NAVY
+).pack(side="left", padx=10, pady=6)
+
+btn_cerrar_sel_rec = ctk.CTkButton(
+    f_sel_top_hdr,
+    text="✕ Cerrar",
+    font=(FONT_MAIN, 10, "bold"),
+    width=68,
+    height=28,
+    fg_color="#FFFFFF",
+    hover_color="#F1F5F9",
+    text_color="#64748B",
+    border_width=1,
+    border_color="#CBD5E1",
+    corner_radius=4,
+    command=lambda: alternar_selector_recetas(forzar_cerrar=True)
+)
+btn_cerrar_sel_rec.pack(side="right", padx=6, pady=4)
+
+f_sel_scroll = ctk.CTkScrollableFrame(f_proc_selector_recetas, fg_color="#FFFFFF", height=295)
+f_sel_scroll.pack(fill="both", expand=True, padx=6, pady=(0, 6))
+
+try:
+    c_s = f_sel_scroll._parent_canvas
+    _ts = {"y": 0}
+    def _ts_p(e):
+        _ts["y"] = e.y_root
+    def _ts_m(e):
+        dy = _ts["y"] - e.y_root
+        _ts["y"] = e.y_root
+        if dy != 0:
+            c_s.yview_scroll(int(dy), "units")
+    c_s.bind("<ButtonPress-1>", _ts_p, add="+")
+    c_s.bind("<B1-Motion>", _ts_m, add="+")
+except Exception:
+    pass
+
+def actualizar_lista_selector_recetas():
+    for w in f_sel_scroll.winfo_children():
+        w.destroy()
+        
+    recetas_disponibles = config_actual.get("recetas", [])
+    receta_activa_actual = config_actual.get("receta_activa", "")
+    
+    for r in recetas_disponibles:
+        nom_r = r.get("nombre", "")
+        mod_r = r.get("modelo", "")
+        pz_r = r.get("pieza", "")
+        filas_r = r.get("filas", 3)
+        cols_r = r.get("cols", 5)
+        pzs_r = r.get("piezas", filas_r * cols_r)
+        
+        es_activa = (nom_r == receta_activa_actual)
+        
+        bg_card = "#EFF6FF" if es_activa else "#FFFFFF"
+        bdr_col = "#2563EB" if es_activa else "#E2E8F0"
+        bdr_w = 2 if es_activa else 1
+        
+        f_card = ctk.CTkFrame(
+            f_sel_scroll, 
+            fg_color=bg_card, 
+            corner_radius=8, 
+            border_width=bdr_w, 
+            border_color=bdr_col,
+            height=56
+        )
+        f_card.pack(fill="x", pady=3, padx=2)
+        f_card.pack_propagate(False)
+        
+        f_info = ctk.CTkFrame(f_card, fg_color="transparent")
+        f_info.pack(side="left", fill="both", expand=True, padx=10, pady=4)
+        
+        lbl_nom = ctk.CTkLabel(
+            f_info, 
+            text=nom_r, 
+            font=(FONT_MAIN, 13, "bold"), 
+            text_color="#1E3A8A" if es_activa else "#0F172A",
+            anchor="w"
+        )
+        lbl_nom.pack(fill="x")
+        
+        lbl_sub = ctk.CTkLabel(
+            f_info, 
+            text=f"Modelo: {mod_r}  |  {pz_r}  |  {filas_r}×{cols_r} ({pzs_r} Pzs)", 
+            font=(FONT_MAIN, 10), 
+            text_color="#2563EB" if es_activa else TEXT_MUTED,
+            anchor="w"
+        )
+        lbl_sub.pack(fill="x")
+        
+        f_act = ctk.CTkFrame(f_card, fg_color="transparent")
+        f_act.pack(side="right", padx=10)
+        
+        if es_activa:
+            ctk.CTkLabel(
+                f_act,
+                text="✓ ACTIVO",
+                font=(FONT_MAIN, 11, "bold"),
+                fg_color="#DCFCE7",
+                text_color="#15803D",
+                corner_radius=6,
+                padx=10,
+                pady=4
+            ).pack()
+        else:
+            btn_sel = ctk.CTkButton(
+                f_act,
+                text="Seleccionar",
+                font=(FONT_MAIN, 11, "bold"),
+                width=90,
+                height=32,
+                fg_color=COLOR_KOSTAL_NAVY,
+                hover_color=COLOR_KOSTAL_LIGHT,
+                text_color="white",
+                corner_radius=6,
+                command=lambda val=nom_r: _seleccionar_receta_desde_panel(val)
+            )
+            btn_sel.pack()
+            
+        def _bind_click_recursivo(widget, val=nom_r):
+            widget.bind("<Button-1>", lambda e: _seleccionar_receta_desde_panel(val))
+            for child in widget.winfo_children():
+                if not isinstance(child, ctk.CTkButton):
+                    child.bind("<Button-1>", lambda e: _seleccionar_receta_desde_panel(val))
+                    
+        _bind_click_recursivo(f_card)
+        _bind_click_recursivo(f_info)
+
+def _seleccionar_receta_desde_panel(nombre_rec):
+    cargar_receta_por_nombre(nombre_rec)
+    lbl_sel_rec_nom.configure(text=f"📦  {nombre_rec}")
+    alternar_selector_recetas(forzar_cerrar=True)
+
+_selector_recetas_abierto = False
+def alternar_selector_recetas(forzar_cerrar=False):
+    global _selector_recetas_abierto
+    if forzar_cerrar:
+        _selector_recetas_abierto = False
+    else:
+        _selector_recetas_abierto = not _selector_recetas_abierto
+        
+    if _selector_recetas_abierto:
+        actualizar_lista_selector_recetas()
+        f_proc_info_normal.pack_forget()
+        f_proc_selector_recetas.pack(fill="both", expand=True, pady=(4, 0))
+        btn_sel_rec_toggle.configure(text="▲", fg_color="#3B82F6", text_color="#FFFFFF")
+        try:
+            f_sel_scroll._parent_canvas.yview_moveto(0.0)
+        except Exception:
+            pass
+    else:
+        f_proc_selector_recetas.pack_forget()
+        f_proc_info_normal.pack(fill="x")
+        btn_sel_rec_toggle.configure(text="▼", fg_color="#F1F5F9", text_color="#1E3A8A")
+
+f_sel_rec_card.bind("<Button-1>", lambda e: alternar_selector_recetas())
+lbl_sel_rec_nom.bind("<Button-1>", lambda e: alternar_selector_recetas())
+
+# Card de Detalles de la Pieza e Imagen de Referencia (dentro de f_proc_info_normal)
+f_pieza_preview = ctk.CTkFrame(f_proc_info_normal, fg_color="#F8FAFC", corner_radius=8, border_width=1, border_color="#E2E8F0")
 f_pieza_preview.pack(fill="x", pady=4)
 
 f_pz_txt = ctk.CTkFrame(f_pieza_preview, fg_color="transparent")
@@ -4817,10 +5027,10 @@ lbl_proc_img_pieza.pack(expand=True, fill="both")
 
 actualizar_imagen_pieza_proceso(rec_obj_activa.get("imagen", ""))
 
-lbl_piezas_realizadas = fila_info(f_proc_b, "Piezas Realizadas:", f"00 / {matriz_total:02d}", COLOR_KOSTAL_NAVY, mono=True)
+lbl_piezas_realizadas = fila_info(f_proc_info_normal, "Piezas Realizadas:", f"00 / {matriz_total:02d}", COLOR_KOSTAL_NAVY, mono=True)
 
 f_cero_ind = ctk.CTkFrame(
-    f_proc_b, 
+    f_proc_info_normal, 
     fg_color="#ECFDF5" if cero_ha_sido_seteado else "#FEF3C7", 
     corner_radius=6, 
     border_width=1, 
@@ -4837,13 +5047,13 @@ lbl_indicador_set0 = ctk.CTkLabel(
 )
 lbl_indicador_set0.pack(pady=4)
 
-f_ses = ctk.CTkFrame(f_proc_b, fg_color="transparent")
+f_ses = ctk.CTkFrame(f_proc_info_normal, fg_color="transparent")
 f_ses.pack(fill="x", pady=2)
 ctk.CTkLabel(f_ses, text="Tiempo Sesión:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
 lbl_op_session_timer = ctk.CTkLabel(f_ses, text="00:00:00", font=(FONT_MONO, 13, "bold"), text_color=COLOR_KOSTAL_ACCENT)
 lbl_op_session_timer.pack(side="right")
 
-f_kpis_box = ctk.CTkFrame(f_proc_b, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_LIGHT)
+f_kpis_box = ctk.CTkFrame(f_proc_info_normal, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_LIGHT)
 f_kpis_box.pack(fill="x", pady=4)
 
 def crear_kpi_item(parent, lbl_txt, val_init, c_txt):
@@ -4860,7 +5070,7 @@ lbl_kpi_nok     = None
 lbl_kpi_calidad = None
 
 btn_fin_de_hora = ctk.CTkButton(
-    f_proc_b,
+    f_proc_info_normal,
     text="⏱️  Registrar Fin de Hora",
     font=(FONT_MAIN, 11, "bold"),
     fg_color=COLOR_KOSTAL_NAVY,
@@ -5638,48 +5848,48 @@ ctk.CTkLabel(f_sec_jog_hdr, text="🕹️ JOG MANUAL", font=(FONT_MAIN, 10, "bol
 # Paso de Movimiento con controles táctiles avanzados (Sin bugs ni trabas)
 f_step_row = ctk.CTkFrame(f_jog_b, fg_color="transparent")
 f_step_row.pack(fill="x", pady=(0, 2))
-ctk.CTkLabel(f_step_row, text="Paso JOG:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
+ctk.CTkLabel(f_step_row, text="Paso JOG:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
 
 # Botón abrir teclado numérico táctil flotante
 btn_open_numpad = ctk.CTkButton(
     f_step_row,
     text="🔢",
-    font=(FONT_MAIN, 11),
-    width=28,
-    height=28,
+    font=(FONT_MAIN, 13),
+    width=34,
+    height=36,
     fg_color="#FFFFFF",
     hover_color="#E2E8F0",
     text_color=COLOR_KOSTAL_NAVY,
     border_width=1,
     border_color=BORDER_LIGHT,
-    corner_radius=4,
+    corner_radius=6,
     command=abrir_teclado_numerico_paso
 )
 btn_open_numpad.pack(side="right", padx=(2, 0))
 
-ctk.CTkLabel(f_step_row, text="mm", font=(FONT_MAIN, 9), text_color=TEXT_MUTED).pack(side="right", padx=(2, 2))
+ctk.CTkLabel(f_step_row, text="mm", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).pack(side="right", padx=(3, 2))
 
 # Botón incrementar paso [+]
 btn_step_plus = ctk.CTkButton(
     f_step_row,
     text="+",
-    font=(FONT_MAIN, 13, "bold"),
-    width=26,
-    height=28,
+    font=(FONT_MAIN, 16, "bold"),
+    width=34,
+    height=36,
     fg_color="#FFFFFF",
     hover_color="#E2E8F0",
     text_color="#1E293B",
     border_width=1,
     border_color=BORDER_LIGHT,
-    corner_radius=4,
+    corner_radius=6,
     command=lambda: paso_jog_siguiente(1)
 )
 btn_step_plus.pack(side="right", padx=1)
 
-# Caja de entrada interactiva con sincronización y persistencia
-caja_paso = ctk.CTkEntry(f_step_row, width=54, height=28, font=(FONT_MONO, 11, "bold"), justify="center", corner_radius=4)
+# Caja de entrada interactiva con sincronización y persistencia (Agrandada a 82x36 con fuente mayor)
+caja_paso = ctk.CTkEntry(f_step_row, width=82, height=36, font=(FONT_MONO, 14, "bold"), justify="center", corner_radius=6)
 caja_paso.insert(0, str(config_actual.get("paso_jog", "5.0")))
-caja_paso.pack(side="right", padx=1)
+caja_paso.pack(side="right", padx=2)
 
 def _on_caja_paso_change(event=None):
     txt = caja_paso.get().strip().replace(",", ".")
@@ -5707,30 +5917,30 @@ caja_paso.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), caja_paso.mast
 btn_step_minus = ctk.CTkButton(
     f_step_row,
     text="-",
-    font=(FONT_MAIN, 13, "bold"),
-    width=26,
-    height=28,
+    font=(FONT_MAIN, 16, "bold"),
+    width=34,
+    height=36,
     fg_color="#FFFFFF",
     hover_color="#E2E8F0",
     text_color="#1E293B",
     border_width=1,
     border_color=BORDER_LIGHT,
-    corner_radius=4,
+    corner_radius=6,
     command=lambda: paso_jog_siguiente(-1)
 )
 btn_step_minus.pack(side="right", padx=(0, 1))
 
 # Fila de Presets Rápidos de Paso (0.5, 1.0, 2.0, 5.0, 10.0)
 f_step_presets = ctk.CTkFrame(f_jog_b, fg_color="transparent")
-f_step_presets.pack(fill="x", pady=(1, 5))
+f_step_presets.pack(fill="x", pady=(2, 5))
 
 _btns_paso_presets.clear()
 for p_preset in [0.5, 1.0, 2.0, 5.0, 10.0]:
     b_p = ctk.CTkButton(
         f_step_presets,
         text=f"{p_preset:g}",
-        font=(FONT_MAIN, 9, "bold"),
-        height=24,
+        font=(FONT_MAIN, 10, "bold"),
+        height=28,
         corner_radius=4,
         border_width=1,
         border_color=BORDER_LIGHT,
@@ -5742,7 +5952,7 @@ for p_preset in [0.5, 1.0, 2.0, 5.0, 10.0]:
     b_p.pack(side="left", expand=True, fill="x", padx=1)
     _btns_paso_presets[p_preset] = b_p
 
-# Cruzeta y Coordenadas Agrandadas
+# Cruzeta y Coordenadas Agrandadas para pantalla táctil
 f_jog_ctrl = ctk.CTkFrame(f_jog_b, fg_color="transparent")
 f_jog_ctrl.pack(fill="x", pady=4)
 
@@ -5769,15 +5979,15 @@ def btn_pad(parent, txt, cmd):
     return ctk.CTkButton(
         parent,
         text=txt,
-        font=(FONT_MAIN, 15, "bold"),
+        font=(FONT_MAIN, 20, "bold"),
         fg_color="#FFFFFF",
         hover_color="#F1F5F9",
         text_color="#1E293B",
         border_width=1,
         border_color=BORDER_LIGHT,
         corner_radius=8,
-        width=52,
-        height=44,
+        width=64,
+        height=52,
         command=cmd
     )
 
@@ -5787,7 +5997,7 @@ btn_y_mas.grid(row=0, column=1, pady=2)
 btn_x_menos = btn_pad(f_pad, "◄", lambda: mover_cruzeta('X', -1))
 btn_x_menos.grid(row=1, column=0, padx=2)
 
-ctk.CTkLabel(f_pad, text="○", font=(FONT_MAIN, 12), text_color=TEXT_MUTED).grid(row=1, column=1)
+ctk.CTkLabel(f_pad, text="○", font=(FONT_MAIN, 14), text_color=TEXT_MUTED).grid(row=1, column=1)
 
 btn_x_mas = btn_pad(f_pad, "►", lambda: mover_cruzeta('X', 1))
 btn_x_mas.grid(row=1, column=2, padx=2)
@@ -5799,36 +6009,117 @@ btn_y_menos.grid(row=2, column=1, pady=2)
 f_refs = ctk.CTkFrame(f_jog_b, fg_color="transparent")
 f_refs.pack(fill="x", pady=(4, 0))
 
-def btn_ref_flat(parent, txt, cmd, colr="#FFFFFF", text_c="#334155"):
-    return ctk.CTkButton(
-        parent,
-        text=txt,
-        font=(FONT_MAIN, 10, "bold"),
-        fg_color=colr,
-        hover_color="#F8FAFC",
-        text_color=text_c,
-        border_width=1,
-        border_color=BORDER_LIGHT,
-        corner_radius=6,
-        height=34,
-        command=cmd
-    )
+# Fila 1: Home y Activar Tampo (SIEMPRE VISIBLES Y MÁS GRANDES)
+f_main_jog_actions = ctk.CTkFrame(f_refs, fg_color="transparent")
+f_main_jog_actions.pack(fill="x", pady=(2, 4))
 
-f_rf1 = ctk.CTkFrame(f_refs, fg_color="transparent")
-f_rf1.pack(fill="x", pady=2)
-btn_ir_home = btn_ref_flat(f_rf1, "🏠 Home", ejecutar_home_general)
+btn_ir_home = ctk.CTkButton(
+    f_main_jog_actions,
+    text="🏠 Home",
+    font=(FONT_MAIN, 13, "bold"),
+    fg_color="#FFFFFF",
+    hover_color="#F1F5F9",
+    text_color="#1E293B",
+    border_width=1,
+    border_color=BORDER_LIGHT,
+    corner_radius=8,
+    height=46,
+    command=ejecutar_home_general
+)
 btn_ir_home.pack(side="left", expand=True, fill="x", padx=2)
-btn_set_home = btn_ref_flat(f_rf1, "⚙ Set Home", guardar_posicion_como_home)
-btn_set_home.pack(side="left", expand=True, fill="x", padx=2)
 
-f_rf2 = ctk.CTkFrame(f_refs, fg_color="transparent")
-f_rf2.pack(fill="x", pady=2)
-btn_set_cero = btn_ref_flat(f_rf2, "↩ Set 0", guardar_posicion_como_cero, colr="#FFFFFF", text_c=COLOR_OK_TEXT)
+btn_activar_tampo = ctk.CTkButton(
+    f_main_jog_actions,
+    text="🏷️ Activar Tampo",
+    font=(FONT_MAIN, 13, "bold"),
+    fg_color="#FFFFFF",
+    hover_color="#F1F5F9",
+    text_color=COLOR_KOSTAL_ACCENT,
+    border_width=1,
+    border_color=BORDER_LIGHT,
+    corner_radius=8,
+    height=46,
+    command=activar_tampo_manual
+)
+btn_activar_tampo.pack(side="left", expand=True, fill="x", padx=2)
+
+# Fila 2: Pestaña Desplegable para Set 0 y Set Home (Ocultos por defecto para proteger calibración)
+_calib_jog_desplegada = False
+
+f_calib_desplegable = ctk.CTkFrame(f_refs, fg_color="#FEF3C7", corner_radius=8, border_width=1, border_color="#FDE68A")
+# f_calib_desplegable permanece oculto hasta pulsar desplegar
+
+f_calib_banner = ctk.CTkFrame(f_calib_desplegable, fg_color="transparent")
+f_calib_banner.pack(fill="x", padx=8, pady=(6, 2))
+ctk.CTkLabel(
+    f_calib_banner,
+    text="⚠️ CALIBRACIÓN Y FIJACIÓN DE ORIGEN",
+    font=(FONT_MAIN, 9, "bold"),
+    text_color="#92400E"
+).pack(side="left")
+
+f_calib_row = ctk.CTkFrame(f_calib_desplegable, fg_color="transparent")
+f_calib_row.pack(fill="x", padx=4, pady=(2, 6))
+
+btn_set_cero = ctk.CTkButton(
+    f_calib_row,
+    text="↩ Set 0",
+    font=(FONT_MAIN, 11, "bold"),
+    fg_color="#FFFFFF",
+    hover_color="#F0FDF4",
+    text_color=COLOR_OK_TEXT,
+    border_width=1,
+    border_color="#86EFAC",
+    corner_radius=6,
+    height=42,
+    command=guardar_posicion_como_cero
+)
 btn_set_cero.pack(side="left", expand=True, fill="x", padx=2)
 
-# Botón para activar marca S.tampo en el PLC (Solo permitido en Modo Manual)
-btn_activar_tampo = btn_ref_flat(f_rf2, "🏷️ Activar Tampo", activar_tampo_manual, colr="#FFFFFF", text_c=COLOR_KOSTAL_ACCENT)
-btn_activar_tampo.pack(side="left", expand=True, fill="x", padx=2)
+btn_set_home = ctk.CTkButton(
+    f_calib_row,
+    text="⚙ Set Home",
+    font=(FONT_MAIN, 11, "bold"),
+    fg_color="#FFFFFF",
+    hover_color="#FFFBEB",
+    text_color="#92400E",
+    border_width=1,
+    border_color="#FDE68A",
+    corner_radius=6,
+    height=42,
+    command=guardar_posicion_como_home
+)
+btn_set_home.pack(side="left", expand=True, fill="x", padx=2)
+
+def alternar_desplegable_calibracion():
+    global _calib_jog_desplegada
+    _calib_jog_desplegada = not _calib_jog_desplegada
+    if _calib_jog_desplegada:
+        f_calib_desplegable.pack(fill="x", pady=(2, 4))
+        btn_toggle_calib.configure(text="▲ Ocultar Calibración", fg_color="#FEF3C7", text_color="#92400E")
+    else:
+        f_calib_desplegable.pack_forget()
+        btn_toggle_calib.configure(text="▼ Desplegar Calibración (Set 0 / Set Home)", fg_color="#F8FAFC", text_color=COLOR_KOSTAL_NAVY)
+
+def abrir_desplegable_calibracion():
+    global _calib_jog_desplegada
+    if not _calib_jog_desplegada:
+        alternar_desplegable_calibracion()
+
+btn_toggle_calib = ctk.CTkButton(
+    f_refs,
+    text="▼ Desplegar Calibración (Set 0 / Set Home)",
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color="#F8FAFC",
+    hover_color="#F1F5F9",
+    text_color=COLOR_KOSTAL_NAVY,
+    border_width=1,
+    border_color=BORDER_LIGHT,
+    corner_radius=6,
+    height=34,
+    command=alternar_desplegable_calibracion
+)
+btn_toggle_calib.pack(fill="x", pady=(2, 2))
 
 # DISPLAY NO EDITABLE DE CERO GUARDADO (INFERIOR DE CRUZETA)
 f_cero_readonly = ctk.CTkFrame(f_jog_b, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_CARD)
