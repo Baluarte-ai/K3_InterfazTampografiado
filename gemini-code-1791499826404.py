@@ -2086,10 +2086,18 @@ def ejecutar_home_general():
             lbl_jog_coord_x.configure(text=f"{home_x:.2f}")
         if 'lbl_jog_coord_y' in globals():
             lbl_jog_coord_y.configure(text=f"{home_y:.2f}")
-        enviar_datos()
-        enviar_pulso("HOME")
-        maquina_en_home = True
-        lbl_estado.configure(text="✓ Home ejecutado. Máquina en origen HOME sincronizada.", text_color=COLOR_OK)
+        pos_ok = enviar_datos(verificar_eco=True)
+        if pos_ok or not plc_conectado:
+            enviar_pulso("HOME")
+            maquina_en_home = True
+            lbl_estado.configure(text="✓ Home ejecutado. Máquina en origen HOME sincronizada.", text_color=COLOR_OK)
+        else:
+            def _reintentar_home():
+                if enviar_datos(verificar_eco=True) or not plc_conectado:
+                    enviar_pulso("HOME")
+                    maquina_en_home = True
+            ventana.after(60, _reintentar_home)
+            lbl_estado.configure(text="⚠️ Sincronizando coordenadas HOME con PLC antes de mover...", text_color=COLOR_WARN)
         if '_tutorial_activo' in globals() and _tutorial_activo and _paso_tutorial_actual == 3:
             notificar_accion_tutorial(3, delay_ms=800)
     except Exception as e:
@@ -2103,9 +2111,16 @@ def ejecutar_ir_a_cero():
         caja_pos_x.insert(0, f"{cero_guardado_x:.2f}")
         caja_pos_y.delete(0, tk.END)
         caja_pos_y.insert(0, f"{cero_guardado_y:.2f}")
-        enviar_datos()
-        enviar_pulso("CRUZETA")
-        lbl_estado.configure(text=f"✓ Viajando a CERO de Pintado (X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f}).", text_color=COLOR_OK)
+        pos_ok = enviar_datos(verificar_eco=True)
+        if pos_ok or not plc_conectado:
+            enviar_pulso("CRUZETA")
+            lbl_estado.configure(text=f"✓ Viajando a CERO de Pintado (X:{cero_guardado_x:.2f} Y:{cero_guardado_y:.2f}).", text_color=COLOR_OK)
+        else:
+            def _reintentar_cero():
+                if enviar_datos(verificar_eco=True) or not plc_conectado:
+                    enviar_pulso("CRUZETA")
+            ventana.after(60, _reintentar_cero)
+            lbl_estado.configure(text=f"⚠️ Confirmando coordenadas de CERO con PLC...", text_color=COLOR_WARN)
     except Exception as e:
         lbl_estado.configure(text=f"✗ Error al ir a Cero: {e}", text_color=COLOR_NOK)
 
@@ -2639,11 +2654,18 @@ def avanzar_siguiente_pieza_matriz():
                 
             caja_pos_x.delete(0, tk.END); caja_pos_x.insert(0, f"{px:.2f}")
             caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{py:.2f}")
-            enviar_datos()
+            pos_ok = enviar_datos(verificar_eco=True)
             
-            # Re-activar NUEVA_POSICION y CRUZETA en el PLC
-            activar_nueva_posicion(duracion_ms=500)
-            enviar_pulso("CRUZETA", duracion_ms=350)
+            # Paso 3: Disparar solo si el PLC confirmó haber recibido y memorizado las coordenadas
+            if pos_ok or not plc_conectado:
+                activar_nueva_posicion(duracion_ms=500)
+                enviar_pulso("CRUZETA", duracion_ms=350)
+            else:
+                def _reintentar_disparo_p2():
+                    if enviar_datos(verificar_eco=True) or not plc_conectado:
+                        activar_nueva_posicion(duracion_ms=500)
+                        enviar_pulso("CRUZETA", duracion_ms=350)
+                ventana.after(60, _reintentar_disparo_p2)
             
             dibujar_fixture_moderno()
             actualizar_kpis_fixture()
@@ -2674,11 +2696,22 @@ def avanzar_siguiente_pieza_matriz():
             sig_x, sig_y = matriz_coordenadas[indice_matriz_actual]
             caja_pos_x.delete(0, tk.END); caja_pos_x.insert(0, f"{sig_x:.2f}")
             caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{sig_y:.2f}")
-            enviar_datos()
+            pos_ok = enviar_datos(verificar_eco=True)
             
-            # REQUERIMIENTO: Activar de forma garantizada NUEVA_POS / NUEVA_POSICION en el PLC
-            activar_nueva_posicion(duracion_ms=500)
-            enviar_pulso("CRUZETA", duracion_ms=350)
+            # Paso 3: Disparar solo si el PLC confirmó haber recibido y memorizado las coordenadas
+            if pos_ok or not plc_conectado:
+                activar_nueva_posicion(duracion_ms=500)
+                enviar_pulso("CRUZETA", duracion_ms=350)
+            else:
+                lbl_estado.configure(
+                    text=f"⚠️ Señal PINTADO -> Pieza {indice_matriz_actual + 1}: Discrepancia temporal en PLC. Reintentando confirmación...",
+                    text_color=COLOR_WARN
+                )
+                def _reintentar_disparo_sig():
+                    if enviar_datos(verificar_eco=True) or not plc_conectado:
+                        activar_nueva_posicion(duracion_ms=500)
+                        enviar_pulso("CRUZETA", duracion_ms=350)
+                ventana.after(60, _reintentar_disparo_sig)
             
             dibujar_fixture_moderno()
             actualizar_kpis_fixture()
@@ -2822,10 +2855,16 @@ def alternar_pintar():
             # Al activar inicio de pintado, viajar a la posición establecida como seteo en 0
             caja_pos_x.delete(0, tk.END); caja_pos_x.insert(0, f"{cero_guardado_x:.2f}")
             caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{cero_guardado_y:.2f}")
-            enviar_datos()
-            activar_nueva_posicion(duracion_ms=500)
-            
-            enviar_pulso("CRUZETA", duracion_ms=350)
+            pos_ok = enviar_datos(verificar_eco=True)
+            if pos_ok or not plc_conectado:
+                activar_nueva_posicion(duracion_ms=500)
+                enviar_pulso("CRUZETA", duracion_ms=350)
+            else:
+                def _reintentar_inicio_pintar():
+                    if enviar_datos(verificar_eco=True) or not plc_conectado:
+                        activar_nueva_posicion(duracion_ms=500)
+                        enviar_pulso("CRUZETA", duracion_ms=350)
+                ventana.after(60, _reintentar_inicio_pintar)
             
             # Activar variable PINTAR en el PLC
             if plc_conectado:
@@ -2882,8 +2921,15 @@ def alternar_manual():
     except Exception as e:
         lbl_estado.configure(text=f"✗ Error en modo: {e}", text_color=COLOR_NOK)
 
-def enviar_datos():
-    """Valida y limita estrictamente las coordenadas (X: 0.0 a 88.0 mm | Y: 0.0 a 200.0 mm)"""
+def enviar_datos(verificar_eco=True):
+    """
+    Patrón Read-Back Handshake (Escribir, Leer y Confirmar):
+    Paso 1 (Escribir): Envía las coordenadas en centésimas de mm (DINT) a POS_X y POS_Y del PLC.
+    Paso 2 (Leer/Eco): Inmediatamente lee de vuelta los registros del PLC para verificar que
+                       recibió exactamente el mismo número. Si hay fallo o discrepancia, reintenta
+                       la escritura para evitar que un retraso de red sea interpretado como 0.
+    Paso 3 (Confirmar): Retorna True solo si el PLC memorizó exitosamente la posición.
+    """
     try:
         val_x = limitar_coord_x(caja_pos_x.get())
         val_y = limitar_coord_y(caja_pos_y.get())
@@ -2893,22 +2939,54 @@ def enviar_datos():
         caja_pos_y.delete(0, tk.END)
         caja_pos_y.insert(0, f"{val_y:.2f}")
         
-        val_px, val_py = float(val_x) * 100, float(val_y) * 100
+        target_px = int(round(float(val_x) * 100))
+        target_py = int(round(float(val_y) * 100))
         try:
             velocidad_general = int(float(caja_vel.get())) if ('caja_vel' in globals() and caja_vel.get().strip()) else 100
         except Exception:
             velocidad_general = 100
             
-        if plc_conectado:
-            nodos["POS_X"].set_value(ua.Variant(int(val_px), ua.VariantType.Int32))
-            nodos["POS_Y"].set_value(ua.Variant(int(val_py), ua.VariantType.Int32))
-            nodos["VELOCIDAD_X"].set_value(ua.Variant(velocidad_general, ua.VariantType.UInt16))
-            nodos["VELOCIDAD_Y"].set_value(ua.Variant(velocidad_general, ua.VariantType.UInt16))
-        else:
-            nodos["POS_X"].set_value(int(val_px))
-            nodos["POS_Y"].set_value(int(val_py))
-            nodos["VELOCIDAD_X"].set_value(velocidad_general)
-            nodos["VELOCIDAD_Y"].set_value(velocidad_general)
+        confirmado = False
+        max_reintentos = 3 if (plc_conectado and verificar_eco) else 1
+        
+        for intento in range(max_reintentos):
+            if plc_conectado:
+                try:
+                    # 1. Escribir
+                    nodos["POS_X"].set_value(ua.Variant(target_px, ua.VariantType.Int32))
+                    nodos["POS_Y"].set_value(ua.Variant(target_py, ua.VariantType.Int32))
+                    nodos["VELOCIDAD_X"].set_value(ua.Variant(velocidad_general, ua.VariantType.UInt16))
+                    nodos["VELOCIDAD_Y"].set_value(ua.Variant(velocidad_general, ua.VariantType.UInt16))
+                except Exception as e_w:
+                    print(f"Error escritura PLC (Intento {intento+1}): {e_w}")
+                    time.sleep(0.015)
+                    continue
+
+                if not verificar_eco:
+                    confirmado = True
+                    break
+
+                # 2. Leer (Eco) para verificar que el PLC memorizó exactamente los valores
+                try:
+                    time.sleep(0.012) # Pausa mínima para ciclo de scan del PLC
+                    eco_x = nodos["POS_X"].get_value()
+                    eco_y = nodos["POS_Y"].get_value()
+                    if eco_x == target_px and eco_y == target_py:
+                        confirmado = True
+                        break
+                    else:
+                        print(f"⚠️ Discrepancia en eco PLC ({intento+1}/{max_reintentos}): Esperado=(X:{target_px}, Y:{target_py}) vs Leído=(X:{eco_x}, Y:{eco_y}). Reintentando...")
+                        time.sleep(0.02)
+                except Exception as e_r:
+                    print(f"Error lectura eco PLC (Intento {intento+1}): {e_r}")
+                    time.sleep(0.015)
+            else:
+                nodos["POS_X"].set_value(target_px)
+                nodos["POS_Y"].set_value(target_py)
+                nodos["VELOCIDAD_X"].set_value(velocidad_general)
+                nodos["VELOCIDAD_Y"].set_value(velocidad_general)
+                confirmado = True
+                break
         
         if 'lbl_jog_coord_x' in globals():
             lbl_jog_coord_x.configure(text=f"{val_x:.2f}")
@@ -2917,8 +2995,11 @@ def enviar_datos():
             
         if 'actualizar_telemetria_plc' in globals():
             actualizar_telemetria_plc(val_x, val_y)
+            
+        return confirmado
     except Exception as e:
         lbl_estado.configure(text=f"✗ Error al enviar datos: {e}", text_color=COLOR_NOK)
+        return False
 
 def mover_cruzeta(eje, direccion):
     """
@@ -2982,9 +3063,12 @@ def mover_cruzeta(eje, direccion):
             
         maquina_en_home = False # Al mover manualmente, sale de HOME
             
-        enviar_datos()
-        enviar_pulso("CRUZETA")
-        lbl_estado.configure(text=f"✓ Cruzeta {eje} movida {paso*direccion:+.2f} mm | Posición: X:{nuevo_x:.2f} Y:{nuevo_y:.2f}", text_color=COLOR_OK)
+        pos_ok = enviar_datos(verificar_eco=True)
+        if pos_ok or not plc_conectado:
+            enviar_pulso("CRUZETA")
+            lbl_estado.configure(text=f"✓ Cruzeta {eje} movida {paso*direccion:+.2f} mm | Posición: X:{nuevo_x:.2f} Y:{nuevo_y:.2f}", text_color=COLOR_OK)
+        else:
+            lbl_estado.configure(text=f"⚠️ Reintentando confirmación de posición con PLC...", text_color=COLOR_WARN)
     except Exception as e:
         lbl_estado.configure(text=f"✗ Error al mover cruzeta: {e}", text_color=COLOR_NOK)
 
@@ -3147,10 +3231,16 @@ def probar_enviar_pieza_especifica(idx):
     px, py = matriz_coordenadas[idx]
     caja_pos_x.delete(0, tk.END); caja_pos_x.insert(0, f"{px:.2f}")
     caja_pos_y.delete(0, tk.END); caja_pos_y.insert(0, f"{py:.2f}")
-    enviar_datos()
-    activar_nueva_posicion(duracion_ms=500)
-    
-    enviar_pulso("CRUZETA", duracion_ms=350)
+    pos_ok = enviar_datos(verificar_eco=True)
+    if pos_ok or not plc_conectado:
+        activar_nueva_posicion(duracion_ms=500)
+        enviar_pulso("CRUZETA", duracion_ms=350)
+    else:
+        def _reintentar_prueba_pieza():
+            if enviar_datos(verificar_eco=True) or not plc_conectado:
+                activar_nueva_posicion(duracion_ms=500)
+                enviar_pulso("CRUZETA", duracion_ms=350)
+        ventana.after(60, _reintentar_prueba_pieza)
     
     dibujar_fixture_moderno()
     actualizar_kpis_fixture()
