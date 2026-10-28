@@ -6768,9 +6768,25 @@ entry_rec_dy = ctk.CTkEntry(f_dist_inputs, width=65, fg_color="#FFFFFF", border_
 entry_rec_dy.insert(0, "36.0")
 entry_rec_dy.pack(side="left", padx=4)
 
-ctk.CTkLabel(f_rec_form_grid, text="Imagen de la Pieza:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).grid(row=4, column=0, sticky="w", pady=4)
+# Fila 4: Coordenadas iniciales de origen (Set 0 / Pieza 01)
+ctk.CTkLabel(f_rec_form_grid, text="Coord. Inicial (Set 0):", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).grid(row=4, column=0, sticky="w", pady=4)
+f_coord_inputs = ctk.CTkFrame(f_rec_form_grid, fg_color="transparent")
+f_coord_inputs.grid(row=4, column=1, sticky="w", padx=6, pady=4)
+ctk.CTkLabel(f_coord_inputs, text="X0 (mm):", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).pack(side="left")
+entry_rec_x0 = ctk.CTkEntry(f_coord_inputs, width=65, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 11))
+entry_rec_x0.insert(0, "0.00")
+entry_rec_x0.pack(side="left", padx=4)
+ctk.CTkLabel(f_coord_inputs, text="Y0 (mm):", font=(FONT_MAIN, 10), text_color=TEXT_MUTED).pack(side="left", padx=(6, 0))
+entry_rec_y0 = ctk.CTkEntry(f_coord_inputs, width=65, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 11))
+entry_rec_y0.insert(0, "0.00")
+entry_rec_y0.pack(side="left", padx=4)
+
+ctk.CTkLabel(f_rec_form_grid, text="ℹ️ Coordenada de origen (P01) guardada al hacer 'Set 0' en JOG.", font=(FONT_MAIN, 9), text_color="#0369A1").grid(row=4, column=2, columnspan=2, sticky="w", padx=(14, 0), pady=4)
+
+# Fila 5: Imagen de la Pieza
+ctk.CTkLabel(f_rec_form_grid, text="Imagen de la Pieza:", font=(FONT_MAIN, 10, "bold"), text_color=TEXT_MUTED).grid(row=5, column=0, sticky="w", pady=4)
 f_img_picker = ctk.CTkFrame(f_rec_form_grid, fg_color="transparent")
-f_img_picker.grid(row=4, column=1, columnspan=2, sticky="we", padx=6, pady=4)
+f_img_picker.grid(row=5, column=1, columnspan=2, sticky="we", padx=6, pady=4)
 entry_rec_img = ctk.CTkEntry(f_img_picker, width=260, fg_color="#FFFFFF", border_color=BORDER_CARD, text_color=TEXT_PRIMARY, font=(FONT_MAIN, 10))
 entry_rec_img.insert(0, os.path.join(BASE_DIR, "Assets", "840d61ad-a9f0-4cc2-8114-b74643920fd2.jpg"))
 entry_rec_img.pack(side="left", fill="x", expand=True)
@@ -6800,7 +6816,7 @@ btn_sel_img = ctk.CTkButton(
 btn_sel_img.pack(side="left", padx=(6, 0))
 
 f_form_img_thumb = ctk.CTkFrame(f_rec_form_grid, fg_color="#FFFFFF", width=90, height=65, corner_radius=6, border_width=1, border_color=BORDER_CARD)
-f_form_img_thumb.grid(row=4, column=3, sticky="w", padx=6, pady=4)
+f_form_img_thumb.grid(row=5, column=3, sticky="w", padx=6, pady=4)
 f_form_img_thumb.pack_propagate(False)
 
 lbl_rec_form_preview = ctk.CTkLabel(f_form_img_thumb, text="[Preview]", font=(FONT_MAIN, 8), text_color=TEXT_MUTED)
@@ -6839,6 +6855,12 @@ def limpiar_campos_receta():
     entry_rec_dx.insert(0, "30.0")
     entry_rec_dy.delete(0, tk.END)
     entry_rec_dy.insert(0, "30.0")
+    if 'entry_rec_x0' in globals():
+        entry_rec_x0.delete(0, tk.END)
+        entry_rec_x0.insert(0, "0.00")
+    if 'entry_rec_y0' in globals():
+        entry_rec_y0.delete(0, tk.END)
+        entry_rec_y0.insert(0, "0.00")
     entry_rec_img.delete(0, tk.END)
     option_rec_filas.set("3")
     option_rec_cols.set("5")
@@ -6862,8 +6884,10 @@ def guardar_o_actualizar_receta():
         dx = float(str(entry_rec_dx.get()).strip().replace(',', '.'))
         dy = float(str(entry_rec_dy.get()).strip().replace(',', '.'))
         vel = int(float(str(entry_rec_vel.get()).strip().replace(',', '.')))
+        x0_val = float(str(entry_rec_x0.get()).strip().replace(',', '.')) if 'entry_rec_x0' in globals() else 0.0
+        y0_val = float(str(entry_rec_y0.get()).strip().replace(',', '.')) if 'entry_rec_y0' in globals() else 0.0
     except ValueError:
-        messagebox.showerror("Error", "Verifique que filas, columnas, distancias y velocidad sean valores numéricos válidos.", parent=ventana)
+        messagebox.showerror("Error", "Verifique que filas, columnas, distancias, coordenadas iniciales y velocidad sean valores numéricos válidos.", parent=ventana)
         return
         
     img_path = entry_rec_img.get().strip()
@@ -6893,9 +6917,9 @@ def guardar_o_actualizar_receta():
                 
         if idx_edicion >= 0:
             receta_previa = recetas_lista[idx_edicion]
-            receta_dict["cero_guardado_x"] = receta_previa.get("cero_guardado_x", 0.0)
-            receta_dict["cero_guardado_y"] = receta_previa.get("cero_guardado_y", 0.0)
-            receta_dict["cero_calibrado"] = receta_previa.get("cero_calibrado", False)
+            receta_dict["cero_guardado_x"] = x0_val
+            receta_dict["cero_guardado_y"] = y0_val
+            receta_dict["cero_calibrado"] = bool(receta_previa.get("cero_calibrado", False) or (x0_val > 0.0 or y0_val > 0.0))
             receta_dict["corridas"] = receta_previa.get("corridas", 0)
             recetas_lista[idx_edicion] = receta_dict
             
@@ -6906,9 +6930,9 @@ def guardar_o_actualizar_receta():
             msg = f"Receta '{nom}' actualizada con éxito."
             _receta_en_edicion_nombre_original = None
         else:
-            receta_dict["cero_guardado_x"] = 0.0
-            receta_dict["cero_guardado_y"] = 0.0
-            receta_dict["cero_calibrado"] = False
+            receta_dict["cero_guardado_x"] = x0_val
+            receta_dict["cero_guardado_y"] = y0_val
+            receta_dict["cero_calibrado"] = bool(x0_val > 0.0 or y0_val > 0.0)
             receta_dict["corridas"] = 0
             recetas_lista.append(receta_dict)
             msg = f"Receta '{nom}' guardada con éxito."
@@ -6924,9 +6948,9 @@ def guardar_o_actualizar_receta():
                 
         if idx_existente >= 0:
             receta_previa = recetas_lista[idx_existente]
-            receta_dict["cero_guardado_x"] = receta_previa.get("cero_guardado_x", 0.0)
-            receta_dict["cero_guardado_y"] = receta_previa.get("cero_guardado_y", 0.0)
-            receta_dict["cero_calibrado"] = receta_previa.get("cero_calibrado", False)
+            receta_dict["cero_guardado_x"] = x0_val
+            receta_dict["cero_guardado_y"] = y0_val
+            receta_dict["cero_calibrado"] = bool(receta_previa.get("cero_calibrado", False) or (x0_val > 0.0 or y0_val > 0.0))
             receta_dict["corridas"] = receta_previa.get("corridas", 0)
             recetas_lista[idx_existente] = receta_dict
             msg = f"Receta '{nom}' actualizada con éxito."
@@ -6939,9 +6963,9 @@ def guardar_o_actualizar_receta():
                     parent=ventana
                 )
                 return
-            receta_dict["cero_guardado_x"] = 0.0
-            receta_dict["cero_guardado_y"] = 0.0
-            receta_dict["cero_calibrado"] = False
+            receta_dict["cero_guardado_x"] = x0_val
+            receta_dict["cero_guardado_y"] = y0_val
+            receta_dict["cero_calibrado"] = bool(x0_val > 0.0 or y0_val > 0.0)
             receta_dict["corridas"] = 0
             recetas_lista.append(receta_dict)
             msg = f"Nueva receta '{nom}' registrada con éxito ({len(recetas_lista)}/99)."
@@ -7022,8 +7046,12 @@ entry_rec_cols.bind("<Return>", lambda e: (entry_rec_dx.focus_set(), "break")[1]
 entry_rec_cols.bind("<KP_Enter>", lambda e: (entry_rec_dx.focus_set(), "break")[1])
 entry_rec_dx.bind("<Return>", lambda e: (entry_rec_dy.focus_set(), "break")[1])
 entry_rec_dx.bind("<KP_Enter>", lambda e: (entry_rec_dy.focus_set(), "break")[1])
-entry_rec_dy.bind("<Return>", lambda e: (ocultar_teclado_nativo(), guardar_o_actualizar_receta(), "break")[2])
-entry_rec_dy.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), guardar_o_actualizar_receta(), "break")[2])
+entry_rec_dy.bind("<Return>", lambda e: (entry_rec_x0.focus_set(), "break")[1])
+entry_rec_dy.bind("<KP_Enter>", lambda e: (entry_rec_x0.focus_set(), "break")[1])
+entry_rec_x0.bind("<Return>", lambda e: (entry_rec_y0.focus_set(), "break")[1])
+entry_rec_x0.bind("<KP_Enter>", lambda e: (entry_rec_y0.focus_set(), "break")[1])
+entry_rec_y0.bind("<Return>", lambda e: (entry_rec_img.focus_set(), "break")[1])
+entry_rec_y0.bind("<KP_Enter>", lambda e: (entry_rec_img.focus_set(), "break")[1])
 entry_rec_img.bind("<Return>", lambda e: (ocultar_teclado_nativo(), guardar_o_actualizar_receta(), "break")[2])
 entry_rec_img.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), guardar_o_actualizar_receta(), "break")[2])
 
@@ -7031,8 +7059,8 @@ entry_rec_img.bind("<KP_Enter>", lambda e: (ocultar_teclado_nativo(), guardar_o_
 frame_tabla_rec = ctk.CTkFrame(view_recetas, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD)
 frame_tabla_rec.pack(fill="both", expand=True, pady=4)
 
-cols_rec = ["NOMBRE", "MODELO", "CÓDIGO", "MATRIZ", "DIST. CENTRO X", "DIST. CENTRO Y", "ÚLTIMA MODIF.", "ESTADO", "ACCIONES"]
-col_weights_rec = [3, 2, 2, 2, 2, 2, 3, 2, 3]
+cols_rec = ["NOMBRE", "MODELO", "CÓDIGO", "MATRIZ", "COORD. INICIAL (P01)", "DIST. CENTRO X", "DIST. CENTRO Y", "ÚLTIMA MODIF.", "ESTADO", "ACCIONES"]
+col_weights_rec = [3, 2, 1, 2, 3, 2, 2, 2, 2, 3]
 
 f_rec_tbl_hdr = ctk.CTkFrame(frame_tabla_rec, fg_color="#F8FAFC", height=38, corner_radius=0)
 f_rec_tbl_hdr.pack(fill="x", padx=1, pady=1)
@@ -7071,6 +7099,12 @@ def editar_receta_formulario(r):
     entry_rec_dx.insert(0, str(r.get("delta_x", 25.0)))
     entry_rec_dy.delete(0, tk.END)
     entry_rec_dy.insert(0, str(r.get("delta_y", 30.0)))
+    if 'entry_rec_x0' in globals():
+        entry_rec_x0.delete(0, tk.END)
+        entry_rec_x0.insert(0, f"{float(r.get('cero_guardado_x', 0.0)):.2f}")
+    if 'entry_rec_y0' in globals():
+        entry_rec_y0.delete(0, tk.END)
+        entry_rec_y0.insert(0, f"{float(r.get('cero_guardado_y', 0.0)):.2f}")
     entry_rec_vel.delete(0, tk.END)
     entry_rec_vel.insert(0, str(r.get("velocidad", 100)))
     entry_rec_img.delete(0, tk.END)
@@ -7149,31 +7183,40 @@ def refrescar_lista_recetas_admin():
         # 4. MATRIZ
         dim_txt = f"{r.get('filas', 3)}×{r.get('cols', 5)}"
         ctk.CTkLabel(f_row, text=dim_txt, font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=3, sticky="ew", padx=2, pady=4)
-        # 5. DISTANCIA CENTRO EN X
+        # 5. COORD. INICIAL (P01 / SET 0)
+        cero_x = float(r.get("cero_guardado_x", 0.0))
+        cero_y = float(r.get("cero_guardado_y", 0.0))
+        ya_cal = bool(r.get("cero_calibrado", False) or (cero_x > 0.0 or cero_y > 0.0))
+        f_coord_p01 = ctk.CTkFrame(f_row, fg_color="transparent")
+        f_coord_p01.grid(row=0, column=4, sticky="ew", padx=2, pady=2)
+        txt_coord = f"X: {cero_x:.2f} mm | Y: {cero_y:.2f} mm"
+        col_coord = "#0284C7" if ya_cal else TEXT_MUTED
+        ctk.CTkLabel(f_coord_p01, text=txt_coord, font=(FONT_MONO, 10, "bold"), text_color=col_coord).pack(anchor="center")
+        # 6. DISTANCIA CENTRO EN X
         try:
             dx_num = float(str(r.get('delta_x', 25.0)).replace(',', '.'))
         except Exception:
             dx_num = 25.0
-        ctk.CTkLabel(f_row, text=f"{dx_num:.2f} mm", font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=4, sticky="ew", padx=2, pady=4)
-        # 6. DISTANCIA CENTRO EN Y
+        ctk.CTkLabel(f_row, text=f"{dx_num:.2f} mm", font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=5, sticky="ew", padx=2, pady=4)
+        # 7. DISTANCIA CENTRO EN Y
         try:
             dy_num = float(str(r.get('delta_y', 30.0)).replace(',', '.'))
         except Exception:
             dy_num = 30.0
-        ctk.CTkLabel(f_row, text=f"{dy_num:.2f} mm", font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=5, sticky="ew", padx=2, pady=4)
-        # 7. ÚLTIMA MODIFICACIÓN
+        ctk.CTkLabel(f_row, text=f"{dy_num:.2f} mm", font=(FONT_MONO, 11), text_color=TEXT_PRIMARY).grid(row=0, column=6, sticky="ew", padx=2, pady=4)
+        # 8. ÚLTIMA MODIFICACIÓN
         f_mod = fechas_mod[idx % len(fechas_mod)]
-        ctk.CTkLabel(f_row, text=f_mod, font=(FONT_MONO, 10), text_color=TEXT_MUTED).grid(row=0, column=6, sticky="ew", padx=2, pady=4)
-        # 8. ESTADO (Pill Activo / Inactivo)
+        ctk.CTkLabel(f_row, text=f_mod, font=(FONT_MONO, 10), text_color=TEXT_MUTED).grid(row=0, column=7, sticky="ew", padx=2, pady=4)
+        # 9. ESTADO (Pill Activo / Inactivo)
         st_pill_bg = "#DCFCE7" if es_activa else "#F1F5F9"
         st_pill_fg = "#15803D" if es_activa else "#64748B"
         st_pill_txt = "● Activo" if es_activa else "● Inactivo"
         f_st = ctk.CTkFrame(f_row, fg_color="transparent")
-        f_st.grid(row=0, column=7, sticky="ew", padx=2, pady=4)
+        f_st.grid(row=0, column=8, sticky="ew", padx=2, pady=4)
         ctk.CTkLabel(f_st, text=st_pill_txt, font=(FONT_MAIN, 10, "bold"), fg_color=st_pill_bg, text_color=st_pill_fg, corner_radius=10, padx=8, pady=2).pack()
-        # 9. ACCIONES: Configurar y Eliminar
+        # 10. ACCIONES: Configurar y Eliminar
         f_act = ctk.CTkFrame(f_row, fg_color="transparent")
-        f_act.grid(row=0, column=8, sticky="ew", padx=2, pady=4)
+        f_act.grid(row=0, column=9, sticky="ew", padx=2, pady=4)
         
         btn_cfg = ctk.CTkButton(
             f_act,

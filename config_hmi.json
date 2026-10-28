@@ -1,7 +1,7 @@
 {
     "cero_guardado_x": 0.0,
     "cero_guardado_y": 0.0,
-    "velocidad": 100,
+    "velocidad": 120,
     "paso_jog": 5.0,
     "pasadas_tampo": 2,
     "patron_pintado": "vertical",
