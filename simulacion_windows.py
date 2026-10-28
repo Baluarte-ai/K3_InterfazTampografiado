@@ -51,5 +51,11 @@ try:
 except KeyboardInterrupt:
     print("\nSimulación finalizada por el usuario.")
 except Exception as e:
-    print(f"\nExcepción en ejecución de simulación: {e}")
-    input("Presione Enter para cerrar...")
+    import traceback
+    print("\n" + "=" * 72)
+    print("ERROR DURANTE LA EJECUCIÓN DE LA SIMULACIÓN:")
+    print("=" * 72)
+    traceback.print_exc()
+    print("=" * 72)
+    print(f"Detalle del error: {e}")
+    input("\nPresione Enter para cerrar...")

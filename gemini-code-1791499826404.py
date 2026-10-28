@@ -7129,9 +7129,9 @@ def refrescar_lista_recetas_admin():
         en_edicion = (nom == _receta_en_edicion_nombre_original)
         
         bg_fila = "#EFF6FF" if en_edicion else ("#FFFFFF" if idx % 2 == 0 else "#F8FAFC")
-        bdr_color = "#3B82F6" if en_edicion else "transparent"
+        bdr_color = "#3B82F6" if en_edicion else bg_fila
         bdr_w = 1 if en_edicion else 0
-        
+
         f_row = ctk.CTkFrame(f_rec_items_container, fg_color=bg_fila, border_color=bdr_color, border_width=bdr_w, height=40, corner_radius=0)
         f_row.pack(fill="x", padx=0, pady=1)
         
