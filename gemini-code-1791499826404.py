@@ -10,6 +10,14 @@ import customtkinter as ctk
 import pandas as pd
 from opcua import Client, ua
 
+# Bandera para activar Modo Simulación (especialmente útil en Windows para pruebas sin PLC)
+MODO_SIM_WINDOWS = (
+    os.environ.get("HMI_SIMULACION") == "1"
+    or "--sim" in sys.argv
+    or "--simulacion" in sys.argv
+    or (sys.platform == "win32" and os.environ.get("HMI_FORZAR_PLC") != "1")
+)
+
 # ==============================================================================
 # PARCHE DE SOPORTE PARA PANTALLAS TÁCTILES (LINUX / TOUCHSCREEN INDUSTRIAL)
 # ==============================================================================
@@ -535,6 +543,11 @@ def vincular_nodos_plc():
 def intentar_conectar_plc(timeout_seg=2.5):
     """Intenta conectar al PLC WAGO y enlazar nodos de telemetría y control"""
     global cliente, plc_conectado
+    if MODO_SIM_WINDOWS:
+        plc_conectado = False
+        vincular_nodos_plc()
+        print("Modo Simulación Windows: omitiendo conexión física al PLC.")
+        return False
     try:
         if cliente:
             try:
@@ -3190,6 +3203,14 @@ def monitoreo_ciclico():
                     nodos["PINTADO"].set_value(ua.Variant(False, ua.VariantType.Boolean))
                 except Exception:
                     pass
+        # En modo simulación Windows: avance automático opcional para pruebas
+        if MODO_SIM_WINDOWS and _auto_sim_activo and estado_pintar and not estado_stop:
+            global _ticks_auto_sim
+            _ticks_auto_sim = _ticks_auto_sim + 1
+            if _ticks_auto_sim >= 18:  # ~1.4 segundos por pieza
+                _ticks_auto_sim = 0
+                avanzar_siguiente_pieza_matriz()
+
         ultimo_estado_pintado = pintado_actual
         ultimo_estado_sensor_y = sensor_y_val
         
@@ -3200,6 +3221,29 @@ def monitoreo_ciclico():
     except Exception:
         pass
     ventana.after(80, monitoreo_ciclico)
+
+_auto_sim_activo = False
+_ticks_auto_sim = 0
+
+def alternar_auto_sim():
+    global _auto_sim_activo, _ticks_auto_sim
+    _auto_sim_activo = not _auto_sim_activo
+    _ticks_auto_sim = 0
+    if _auto_sim_activo:
+        if 'btn_sim_auto' in globals():
+            btn_sim_auto.configure(text="⏸ Detener Auto-Sim", fg_color="#DC2626", hover_color="#B91C1C")
+        lbl_estado.configure(text="▶ Auto-Simulador activado: Avanzando piezas automáticamente cada ~1.4s.", text_color=COLOR_OK)
+    else:
+        if 'btn_sim_auto' in globals():
+            btn_sim_auto.configure(text="▶ Auto-Sim: OFF", fg_color="#0284C7", hover_color="#0369A1")
+        lbl_estado.configure(text="⏸ Auto-Simulador pausado.", text_color=TEXT_MUTED)
+
+def forzar_disparo_simulado():
+    if not estado_pintar:
+        lbl_estado.configure(text="⚠️ Presione primero 'INICIO DE PINTADO' para iniciar el ciclo.", text_color=COLOR_WARN)
+        return
+    avanzar_siguiente_pieza_matriz()
+    lbl_estado.configure(text="⚡ Disparo manual simulado del PLC ejecutado con éxito.", text_color=COLOR_OK)
 
 def cerrar_aplicacion():
     # 1. Ocultar y cerrar teclado en pantalla inmediatamente
@@ -3686,27 +3730,35 @@ def actualizar_temporizador_sesion():
 # 5. VENTANA PRINCIPAL (CUSTOMTKINTER)
 # ==============================================================================
 ventana = ctk.CTk()
-ventana.title("KOSTAL Industrial HMI - Estación de Inserción y Pintado SMC")
-ventana.geometry("1920x1080")
-ventana.minsize(1280, 720)
-ventana.configure(fg_color=BG_MAIN)
-try:
-    ventana.config(cursor="none")
-except Exception:
-    pass
-ventana.protocol("WM_DELETE_WINDOW", cerrar_aplicacion)
+if MODO_SIM_WINDOWS:
+    ventana.title("KOSTAL Industrial HMI — Modo Simulación Windows (Pruebas)")
+    ventana.geometry("1400x860+60+20")
+    ventana.minsize(1180, 700)
+else:
+    ventana.title("KOSTAL Industrial HMI - Estación de Inserción y Pintado SMC")
+    ventana.geometry("1920x1080")
+    ventana.minsize(1280, 720)
 
-# Modo Pantalla Completa nativa (Resolución objetivo 1920x1080)
-try:
-    ventana.attributes("-fullscreen", True)
-except Exception:
+ventana.configure(fg_color=BG_MAIN)
+if not MODO_SIM_WINDOWS:
     try:
-        if sys.platform.startswith("linux"):
-            ventana.attributes("-zoomed", True)
-        else:
-            ventana.state("zoomed")
+        ventana.config(cursor="none")
     except Exception:
         pass
+ventana.protocol("WM_DELETE_WINDOW", cerrar_aplicacion)
+
+if not MODO_SIM_WINDOWS:
+    # Modo Pantalla Completa nativa (Resolución objetivo 1920x1080)
+    try:
+        ventana.attributes("-fullscreen", True)
+    except Exception:
+        try:
+            if sys.platform.startswith("linux"):
+                ventana.attributes("-zoomed", True)
+            else:
+                ventana.state("zoomed")
+        except Exception:
+            pass
 
 # Traer la interfaz al frente de la terminal y asegurar foco sin atrapar capas
 ventana.lift()
@@ -3851,6 +3903,18 @@ ctk.CTkLabel(
 f_splash_actions = ctk.CTkFrame(f_sp_inner, fg_color="transparent")
 
 def _iniciar_conexion_en_splash():
+    if MODO_SIM_WINDOWS:
+        progress_splash.set(0.60)
+        lbl_splash_status.configure(text="⚡ Modo Simulación activado para pruebas en Windows...", text_color="#38BDF8")
+        lbl_splash_pct.configure(text="60%")
+        def _paso_final_sim():
+            progress_splash.set(1.0)
+            lbl_splash_status.configure(text="✓ Sistema Listo en MODO SIMULACIÓN.", text_color="#10B981")
+            lbl_splash_pct.configure(text="100%")
+            ventana.after(200, _mostrar_login)
+        ventana.after(150, _paso_final_sim)
+        return
+
     progress_splash.set(0.15)
     lbl_splash_status.configure(text="Iniciando subsistemas HMI y registros de memoria...", text_color="#38BDF8")
     lbl_splash_pct.configure(text="15%")
@@ -7551,6 +7615,33 @@ btn_sb_kb = ctk.CTkButton(
     command=alternar_teclado_tactil
 )
 btn_sb_kb.pack(side="right", padx=4, pady=4)
+
+if MODO_SIM_WINDOWS:
+    btn_sim_disparo = ctk.CTkButton(
+        status_bar,
+        text="⚡ Disparar Pintado (Sim)",
+        font=(FONT_MAIN, 9, "bold"),
+        fg_color="#059669",
+        hover_color="#047857",
+        text_color="white",
+        corner_radius=4,
+        height=24,
+        command=forzar_disparo_simulado
+    )
+    btn_sim_disparo.pack(side="right", padx=3, pady=4)
+
+    btn_sim_auto = ctk.CTkButton(
+        status_bar,
+        text="▶ Auto-Sim: OFF",
+        font=(FONT_MAIN, 9, "bold"),
+        fg_color="#0284C7",
+        hover_color="#0369A1",
+        text_color="white",
+        corner_radius=4,
+        height=24,
+        command=alternar_auto_sim
+    )
+    btn_sim_auto.pack(side="right", padx=3, pady=4)
 
 btn_sb_min = ctk.CTkButton(
     status_bar,
