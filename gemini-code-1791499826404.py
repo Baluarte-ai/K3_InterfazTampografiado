@@ -540,14 +540,31 @@ def vincular_nodos_plc():
     }
     return False
 
-def intentar_conectar_plc(timeout_seg=2.5):
-    """Intenta conectar al PLC WAGO y enlazar nodos de telemetría y control"""
+def _probar_socket_plc(host="192.168.1.69", port=4840, timeout=0.8):
+    try:
+        import socket
+        s = socket.create_connection((host, port), timeout=timeout)
+        s.close()
+        return True
+    except Exception:
+        return False
+
+def intentar_conectar_plc(timeout_seg=2.0):
+    """Intenta conectar al PLC WAGO y enlazar nodos de telemetría y control de forma rápida"""
     global cliente, plc_conectado
     if MODO_SIM_WINDOWS:
         plc_conectado = False
         vincular_nodos_plc()
         print("Modo Simulación Windows: omitiendo conexión física al PLC.")
         return False
+        
+    # Verificación no bloqueante de socket (evita bloqueo de 30-60s del kernel TCP si no hay Ethernet)
+    if not _probar_socket_plc("192.168.1.69", 4840, timeout=0.8):
+        print("Aviso: PLC WAGO no responde al ping de socket (192.168.1.69:4840). Omitiendo intento bloqueante.")
+        plc_conectado = False
+        vincular_nodos_plc()
+        return False
+        
     try:
         if cliente:
             try:
@@ -3918,22 +3935,22 @@ def _iniciar_conexion_en_splash():
             progress_splash.set(1.0)
             lbl_splash_status.configure(text="✓ Sistema Listo en MODO SIMULACIÓN.", text_color="#10B981")
             lbl_splash_pct.configure(text="100%")
-            ventana.after(200, _mostrar_login)
-        ventana.after(150, _paso_final_sim)
+            ventana.after(100, _mostrar_login)
+        ventana.after(80, _paso_final_sim)
         return
 
-    progress_splash.set(0.15)
+    progress_splash.set(0.20)
     lbl_splash_status.configure(text="Iniciando subsistemas HMI y registros de memoria...", text_color="#38BDF8")
-    lbl_splash_pct.configure(text="15%")
+    lbl_splash_pct.configure(text="20%")
     
     def _paso_conectar():
-        progress_splash.set(0.40)
-        lbl_splash_status.configure(text="Intentando conectar con PLC WAGO (192.168.1.69:4840)...", text_color="#38BDF8")
-        lbl_splash_pct.configure(text="40%")
+        progress_splash.set(0.45)
+        lbl_splash_status.configure(text="Comprobando comunicación con PLC WAGO (192.168.1.69:4840)...", text_color="#38BDF8")
+        lbl_splash_pct.configure(text="45%")
         
         res = [None]
         def _thread_con():
-            res[0] = intentar_conectar_plc(timeout_seg=2.5)
+            res[0] = intentar_conectar_plc(timeout_seg=2.0)
         
         import threading
         t = threading.Thread(target=_thread_con, daemon=True)
@@ -3941,23 +3958,17 @@ def _iniciar_conexion_en_splash():
         
         def _verificar_hilo(intentos=0):
             if t.is_alive():
-                p_actual = min(0.68, 0.40 + (intentos * 0.025))
+                p_actual = min(0.75, 0.45 + (intentos * 0.04))
                 progress_splash.set(p_actual)
                 lbl_splash_pct.configure(text=f"{int(p_actual*100)}%")
-                ventana.after(140, lambda: _verificar_hilo(intentos + 1))
+                ventana.after(60, lambda: _verificar_hilo(intentos + 1))
             else:
                 if res[0] is True:
                     progress_splash.configure(progress_color="#10B981")
-                    progress_splash.set(0.85)
+                    progress_splash.set(1.0)
                     lbl_splash_status.configure(text="✓ Conexión establecida con PLC WAGO exitosamente.", text_color="#10B981")
-                    lbl_splash_pct.configure(text="85%")
-                    
-                    def _paso_final():
-                        progress_splash.set(1.0)
-                        lbl_splash_status.configure(text="¡Sistema Listo! Entrando al sistema...", text_color="#F8FAFC")
-                        lbl_splash_pct.configure(text="100%")
-                        ventana.after(350, _mostrar_login)
-                    ventana.after(350, _paso_final)
+                    lbl_splash_pct.configure(text="100%")
+                    ventana.after(120, _mostrar_login)
                 else:
                     progress_splash.configure(progress_color="#F59E0B")
                     lbl_splash_status.configure(
@@ -3967,9 +3978,9 @@ def _iniciar_conexion_en_splash():
                     lbl_splash_pct.configure(text="PAUSA")
                     _mostrar_opciones_sin_plc()
                     
-        ventana.after(140, _verificar_hilo)
+        ventana.after(60, _verificar_hilo)
         
-    ventana.after(300, _paso_conectar)
+    ventana.after(60, _paso_conectar)
 
 def _mostrar_login():
     try:
@@ -4977,17 +4988,20 @@ def actualizar_lista_selector_recetas():
     receta_activa_actual = config_actual.get("receta_activa", "")
     
     for r in recetas_disponibles:
-        nom_r = r.get("nombre", "")
-        mod_r = r.get("modelo", "")
-        pz_r = r.get("pieza", "")
-        filas_r = r.get("filas", 3)
-        cols_r = r.get("cols", 5)
-        pzs_r = r.get("piezas", filas_r * cols_r)
+        nom_r = str(r.get("nombre", "")).strip() or "Receta Base"
+        mod_r = str(r.get("modelo", "")).strip() or "—"
+        pz_r = str(r.get("pieza", "")).strip() or "—"
+        try:
+            filas_r = int(r.get("filas", 3))
+            cols_r = int(r.get("cols", 5))
+            pzs_r = int(r.get("piezas", filas_r * cols_r))
+        except Exception:
+            filas_r, cols_r, pzs_r = 3, 5, 15
         
         es_activa = (nom_r == receta_activa_actual)
         
         bg_card = "#EFF6FF" if es_activa else "#FFFFFF"
-        bdr_col = "#2563EB" if es_activa else "#E2E8F0"
+        bdr_col = "#2563EB" if es_activa else "#CBD5E1"
         bdr_w = 2 if es_activa else 1
         
         f_card = ctk.CTkFrame(
@@ -4996,53 +5010,32 @@ def actualizar_lista_selector_recetas():
             corner_radius=8, 
             border_width=bdr_w, 
             border_color=bdr_col,
-            height=56
+            cursor="hand2"
         )
-        f_card.pack(fill="x", pady=3, padx=2)
-        f_card.pack_propagate(False)
+        f_card.pack(fill="x", pady=4, padx=3)
         
-        f_info = ctk.CTkFrame(f_card, fg_color="transparent")
-        f_info.pack(side="left", fill="both", expand=True, padx=10, pady=4)
-        
-        lbl_nom = ctk.CTkLabel(
-            f_info, 
-            text=nom_r, 
-            font=(FONT_MAIN, 13, "bold"), 
-            text_color="#1E3A8A" if es_activa else "#0F172A",
-            anchor="w"
-        )
-        lbl_nom.pack(fill="x")
-        
-        lbl_sub = ctk.CTkLabel(
-            f_info, 
-            text=f"Modelo: {mod_r}  |  {pz_r}  |  {filas_r}×{cols_r} ({pzs_r} Pzs)", 
-            font=(FONT_MAIN, 10), 
-            text_color="#2563EB" if es_activa else TEXT_MUTED,
-            anchor="w"
-        )
-        lbl_sub.pack(fill="x")
-        
+        # 1. Empaquetar f_act a la derecha PRIMERO para evitar que f_info lo aplaste a 1x1
         f_act = ctk.CTkFrame(f_card, fg_color="transparent")
-        f_act.pack(side="right", padx=10)
+        f_act.pack(side="right", padx=(4, 10), pady=8)
         
         if es_activa:
             ctk.CTkLabel(
                 f_act,
-                text="✓ ACTIVO",
+                text="✓ ACTIVA",
                 font=(FONT_MAIN, 11, "bold"),
                 fg_color="#DCFCE7",
                 text_color="#15803D",
                 corner_radius=6,
                 padx=10,
-                pady=4
+                pady=5
             ).pack()
         else:
             btn_sel = ctk.CTkButton(
                 f_act,
                 text="Seleccionar",
                 font=(FONT_MAIN, 11, "bold"),
-                width=90,
-                height=32,
+                width=92,
+                height=34,
                 fg_color=COLOR_KOSTAL_NAVY,
                 hover_color=COLOR_KOSTAL_LIGHT,
                 text_color="white",
@@ -5051,14 +5044,36 @@ def actualizar_lista_selector_recetas():
             )
             btn_sel.pack()
             
+        # 2. Empaquetar f_info a la izquierda después
+        f_info = ctk.CTkFrame(f_card, fg_color="transparent")
+        f_info.pack(side="left", fill="both", expand=True, padx=(10, 4), pady=6)
+        
+        lbl_nom = ctk.CTkLabel(
+            f_info, 
+            text=f"📦  {nom_r}", 
+            font=(FONT_MAIN, 13, "bold"), 
+            text_color="#1E3A8A" if es_activa else "#0F172A",
+            anchor="w"
+        )
+        lbl_nom.pack(fill="x")
+        
+        lbl_sub = ctk.CTkLabel(
+            f_info, 
+            text=f"Modelo: {mod_r} • {pz_r} • {filas_r}×{cols_r} ({pzs_r} Pzs)", 
+            font=(FONT_MAIN, 10), 
+            text_color="#2563EB" if es_activa else "#64748B",
+            anchor="w"
+        )
+        lbl_sub.pack(fill="x", pady=(2, 0))
+        
+        # Enlazar toque en toda la superficie de la tarjeta para selección táctil directa
         def _bind_click_recursivo(widget, val=nom_r):
-            widget.bind("<Button-1>", lambda e: _seleccionar_receta_desde_panel(val))
+            widget.bind("<Button-1>", lambda e, v=val: _seleccionar_receta_desde_panel(v))
             for child in widget.winfo_children():
                 if not isinstance(child, ctk.CTkButton):
-                    child.bind("<Button-1>", lambda e: _seleccionar_receta_desde_panel(val))
+                    _bind_click_recursivo(child, val=val)
                     
-        _bind_click_recursivo(f_card)
-        _bind_click_recursivo(f_info)
+        _bind_click_recursivo(f_card, val=nom_r)
 
 def _seleccionar_receta_desde_panel(nombre_rec):
     cargar_receta_por_nombre(nombre_rec)
@@ -5076,6 +5091,9 @@ def alternar_selector_recetas(forzar_cerrar=False):
     if _selector_recetas_abierto:
         actualizar_lista_selector_recetas()
         f_proc_info_normal.pack_forget()
+        if 'card_marcha' in globals():
+            card_marcha.pack_forget()
+        card_proc.pack_configure(fill="both", expand=True)
         f_proc_selector_recetas.pack(fill="both", expand=True, pady=(4, 0))
         btn_sel_rec_toggle.configure(text="▲", fg_color="#3B82F6", text_color="#FFFFFF")
         try:
@@ -5084,7 +5102,10 @@ def alternar_selector_recetas(forzar_cerrar=False):
             pass
     else:
         f_proc_selector_recetas.pack_forget()
+        card_proc.pack_configure(fill="x", expand=False)
         f_proc_info_normal.pack(fill="x")
+        if 'card_marcha' in globals():
+            card_marcha.pack(fill="both", expand=True, pady=(6, 0))
         btn_sel_rec_toggle.configure(text="▼", fg_color="#F1F5F9", text_color="#1E3A8A")
 
 f_sel_rec_card.bind("<Button-1>", lambda e: alternar_selector_recetas())
@@ -6758,30 +6779,34 @@ lbl_contador_recetas.pack(side="right", padx=(0, 14))
 f_rec_form_card = ctk.CTkFrame(view_recetas, fg_color="#FFFFFF", corner_radius=8, border_width=1, border_color=BORDER_CARD)
 
 f_rec_form_grid = ctk.CTkFrame(f_rec_form_card, fg_color="transparent")
-f_rec_form_grid.pack(fill="x", padx=14, pady=12)
+f_rec_form_grid.pack(fill="x", padx=16, pady=12)
+f_rec_form_grid.columnconfigure(0, weight=0)
+f_rec_form_grid.columnconfigure(1, weight=1)
+f_rec_form_grid.columnconfigure(2, weight=0)
+f_rec_form_grid.columnconfigure(3, weight=1)
 
-lbl_form_rec_titulo = ctk.CTkLabel(f_rec_form_grid, text="Formulario de Receta", font=(FONT_MAIN, 12, "bold"), text_color=COLOR_KOSTAL_DARK)
+lbl_form_rec_titulo = ctk.CTkLabel(f_rec_form_grid, text="Formulario de Receta", font=(FONT_MAIN, 13, "bold"), text_color=COLOR_KOSTAL_DARK)
 lbl_form_rec_titulo.grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
 
 ctk.CTkLabel(f_rec_form_grid, text="Nombre Receta:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).grid(row=1, column=0, sticky="w", pady=6)
-entry_rec_nom = ctk.CTkEntry(f_rec_form_grid, width=260, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MAIN, 13, "bold"))
+entry_rec_nom = ctk.CTkEntry(f_rec_form_grid, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MAIN, 13, "bold"))
 entry_rec_nom.insert(0, "Botón A")
-entry_rec_nom.grid(row=1, column=1, sticky="w", padx=6, pady=6)
+entry_rec_nom.grid(row=1, column=1, sticky="ew", padx=6, pady=6)
 
 ctk.CTkLabel(f_rec_form_grid, text="Nombre de la Pieza:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).grid(row=1, column=2, sticky="w", padx=(14, 0), pady=6)
-entry_rec_pieza = ctk.CTkEntry(f_rec_form_grid, width=260, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MAIN, 13, "bold"))
+entry_rec_pieza = ctk.CTkEntry(f_rec_form_grid, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MAIN, 13, "bold"))
 entry_rec_pieza.insert(0, "Emblema KOSTAL Gotita")
-entry_rec_pieza.grid(row=1, column=3, sticky="w", padx=6, pady=6)
+entry_rec_pieza.grid(row=1, column=3, sticky="ew", padx=6, pady=6)
 
 ctk.CTkLabel(f_rec_form_grid, text="Modelo:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).grid(row=2, column=0, sticky="w", pady=6)
-entry_rec_mod = ctk.CTkEntry(f_rec_form_grid, width=260, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MAIN, 13, "bold"))
+entry_rec_mod = ctk.CTkEntry(f_rec_form_grid, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MAIN, 13, "bold"))
 entry_rec_mod.insert(0, "KSL-001")
-entry_rec_mod.grid(row=2, column=1, sticky="w", padx=6, pady=6)
+entry_rec_mod.grid(row=2, column=1, sticky="ew", padx=6, pady=6)
 
 ctk.CTkLabel(f_rec_form_grid, text="Velocidad (mm/s):", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).grid(row=2, column=2, sticky="w", padx=(14, 0), pady=6)
-entry_rec_vel = ctk.CTkEntry(f_rec_form_grid, width=260, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MAIN, 13, "bold"))
+entry_rec_vel = ctk.CTkEntry(f_rec_form_grid, height=42, corner_radius=8, border_width=2, border_color="#CBD5E1", text_color=TEXT_PRIMARY, font=(FONT_MAIN, 13, "bold"))
 entry_rec_vel.insert(0, "115")
-entry_rec_vel.grid(row=2, column=3, sticky="w", padx=6, pady=6)
+entry_rec_vel.grid(row=2, column=3, sticky="ew", padx=6, pady=6)
 
 ctk.CTkLabel(f_rec_form_grid, text="Tamaño Matriz:", font=(FONT_MAIN, 11, "bold"), text_color=TEXT_MUTED).grid(row=3, column=0, sticky="w", pady=6)
 f_mat_select = ctk.CTkFrame(f_rec_form_grid, fg_color="transparent")
