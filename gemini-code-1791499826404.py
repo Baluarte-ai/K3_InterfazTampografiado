@@ -3851,108 +3851,155 @@ img_logo_baluarte_hdr = cargar_imagen("LOGO_BALUARTE.png", 145, 36)
 img_logo_baluarte_panel = cargar_imagen("LOGO_BALUARTE.png", 270, 68)
 
 # ------------------------------------------------------------------------------
-# 5.0. PANTALLA DE CARGA INDUSTRIAL (SPLASH SCREEN KOSTAL)
+# 5.0. PANTALLA DE CARGA INDUSTRIAL (SPLASH SCREEN KOSTAL & BALUARTE)
 # ------------------------------------------------------------------------------
-frame_splash = ctk.CTkFrame(ventana, fg_color="#090E17", corner_radius=0)
+frame_splash = ctk.CTkFrame(ventana, fg_color=BG_MAIN, corner_radius=0)
 try:
     frame_splash.configure(cursor="none")
 except Exception:
     pass
 frame_splash.pack(fill="both", expand=True)
 
+# Barra superior con botones de ventana en Splash
+f_sp_top_bar = ctk.CTkFrame(frame_splash, fg_color="transparent", height=40)
+f_sp_top_bar.pack(fill="x", side="top", padx=16, pady=12)
+
+btn_sp_fs = ctk.CTkButton(
+    f_sp_top_bar,
+    text="⛶ Pantalla",
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color="#E2E8F0",
+    hover_color="#CBD5E1",
+    text_color=COLOR_KOSTAL_NAVY,
+    corner_radius=6,
+    width=90,
+    height=30,
+    command=alternar_pantalla_completa
+)
+btn_sp_fs.pack(side="right", padx=(6, 0))
+
+btn_sp_min = ctk.CTkButton(
+    f_sp_top_bar,
+    text="🗕 Minimizar",
+    font=(FONT_MAIN, 10, "bold"),
+    fg_color="#E2E8F0",
+    hover_color="#CBD5E1",
+    text_color=COLOR_KOSTAL_NAVY,
+    corner_radius=6,
+    width=95,
+    height=30,
+    command=minimizar_ventana
+)
+btn_sp_min.pack(side="right")
+
 card_splash = ctk.CTkFrame(
     frame_splash,
-    fg_color="#111827",
-    corner_radius=20,
+    fg_color=BG_CARD,
+    corner_radius=16,
     border_width=1,
-    border_color="#1E293B",
-    width=720,
-    height=460
+    border_color=BORDER_CARD,
+    width=740
 )
 card_splash.place(relx=0.5, rely=0.5, anchor="center")
 
 f_sp_inner = ctk.CTkFrame(card_splash, fg_color="transparent")
-f_sp_inner.place(relx=0.5, rely=0.5, anchor="center")
+f_sp_inner.pack(padx=38, pady=32, fill="both")
+
+# Contenedor de Logos Corporativos (KOSTAL & Baluarte)
+f_sp_logos = ctk.CTkFrame(f_sp_inner, fg_color="transparent")
+f_sp_logos.pack(pady=(0, 16))
 
 if img_logo_kostal_login:
-    ctk.CTkLabel(f_sp_inner, image=img_logo_kostal_login, text="").pack(pady=(0, 6))
+    ctk.CTkLabel(f_sp_logos, image=img_logo_kostal_login, text="").pack(side="left", padx=8)
 else:
-    ctk.CTkLabel(f_sp_inner, text="KOSTAL", font=(FONT_MAIN, 32, "bold"), text_color="#38BDF8").pack(pady=(0, 6))
+    ctk.CTkLabel(f_sp_logos, text="KOSTAL", font=(FONT_MAIN, 28, "bold"), text_color=COLOR_KOSTAL_NAVY).pack(side="left", padx=8)
 
-ctk.CTkLabel(
+if img_logo_baluarte_login:
+    ctk.CTkFrame(f_sp_logos, fg_color="#E2E8F0", width=2, height=48).pack(side="left", padx=16)
+    ctk.CTkLabel(f_sp_logos, image=img_logo_baluarte_login, text="").pack(side="left", padx=8)
+
+lbl_splash_title = ctk.CTkLabel(
     f_sp_inner,
     text="SMC — ESTACIÓN DE INSERCIÓN Y TAMPOGRAFÍA",
-    font=(FONT_MAIN, 16, "bold"),
-    text_color="#F8FAFC"
-).pack(pady=(4, 2))
+    font=(FONT_MAIN, 18, "bold"),
+    text_color=COLOR_KOSTAL_NAVY
+)
+lbl_splash_title.pack(pady=(4, 2))
 
-ctk.CTkLabel(
+lbl_splash_subtitle = ctk.CTkLabel(
     f_sp_inner,
-    text="KOSTAL AUTOMOTIVE ELECTRICAL SYSTEMS | BALUARTE AI",
-    font=(FONT_MAIN, 11),
-    text_color="#94A3B8"
-).pack(pady=(0, 22))
+    text="KOSTAL AUTOMOTIVE ELECTRICAL SYSTEMS | PROYECTOS DE INTEGRACION BALUARTE",
+    font=(FONT_MAIN, 11, "bold"),
+    text_color=TEXT_SECONDARY
+)
+lbl_splash_subtitle.pack(pady=(0, 22))
 
 progress_splash = ctk.CTkProgressBar(
     f_sp_inner,
-    width=520,
-    height=12,
-    corner_radius=6,
-    fg_color="#1E293B",
-    progress_color="#0284C7"
+    width=540,
+    height=10,
+    corner_radius=5,
+    fg_color="#E2E8F0",
+    progress_color=COLOR_KOSTAL_NAVY
 )
 progress_splash.set(0.0)
-progress_splash.pack(pady=(8, 12))
+progress_splash.pack(pady=(6, 10))
 
-f_sp_info = ctk.CTkFrame(f_sp_inner, fg_color="transparent", width=520)
+f_sp_info = ctk.CTkFrame(f_sp_inner, fg_color="transparent", width=540)
 f_sp_info.pack(fill="x", pady=(0, 8))
 
 lbl_splash_status = ctk.CTkLabel(
     f_sp_info,
     text="Iniciando subsistemas HMI...",
     font=(FONT_MAIN, 11, "bold"),
-    text_color="#38BDF8"
+    text_color=COLOR_KOSTAL_NAVY
 )
 lbl_splash_status.pack(side="left")
 
 lbl_splash_pct = ctk.CTkLabel(
     f_sp_info,
     text="0%",
-    font=(FONT_MAIN, 11, "bold"),
-    text_color="#94A3B8"
+    font=(FONT_MONO, 12, "bold"),
+    text_color=COLOR_KOSTAL_ACCENT
 )
 lbl_splash_pct.pack(side="right")
 
+f_sp_badge = ctk.CTkFrame(f_sp_inner, fg_color="#F8FAFC", corner_radius=10, border_width=1, border_color="#E2E8F0")
+f_sp_badge.pack(pady=(16, 0))
+
 ctk.CTkLabel(
-    f_sp_inner,
+    f_sp_badge,
     text="VERSIÓN INDUSTRIAL 1.0.4 • 1920x1080 TOUCH OPTIMIZED",
-    font=(FONT_MAIN, 9),
-    text_color="#475569"
-).pack(pady=(16, 0))
+    font=(FONT_MAIN, 9, "bold"),
+    text_color="#64748B",
+    padx=14,
+    pady=4
+).pack()
 
 f_splash_actions = ctk.CTkFrame(f_sp_inner, fg_color="transparent")
 
 def _iniciar_conexion_en_splash():
     if MODO_SIM_WINDOWS:
         progress_splash.set(0.60)
-        lbl_splash_status.configure(text="⚡ Modo Simulación activado para pruebas en Windows...", text_color="#38BDF8")
-        lbl_splash_pct.configure(text="60%")
+        lbl_splash_status.configure(text="⚡ Modo Simulación activado para pruebas en Windows...", text_color=COLOR_KOSTAL_ACCENT)
+        lbl_splash_pct.configure(text="60%", text_color=COLOR_KOSTAL_ACCENT)
         def _paso_final_sim():
+            progress_splash.configure(progress_color="#10B981")
             progress_splash.set(1.0)
             lbl_splash_status.configure(text="✓ Sistema Listo en MODO SIMULACIÓN.", text_color="#10B981")
-            lbl_splash_pct.configure(text="100%")
+            lbl_splash_pct.configure(text="100%", text_color="#10B981")
             ventana.after(100, _mostrar_login)
         ventana.after(80, _paso_final_sim)
         return
 
     progress_splash.set(0.20)
-    lbl_splash_status.configure(text="Iniciando subsistemas HMI y registros de memoria...", text_color="#38BDF8")
-    lbl_splash_pct.configure(text="20%")
+    lbl_splash_status.configure(text="Iniciando subsistemas HMI y registros de memoria...", text_color=COLOR_KOSTAL_NAVY)
+    lbl_splash_pct.configure(text="20%", text_color=COLOR_KOSTAL_ACCENT)
     
     def _paso_conectar():
         progress_splash.set(0.45)
-        lbl_splash_status.configure(text="Comprobando comunicación con PLC WAGO (192.168.1.69:4840)...", text_color="#38BDF8")
-        lbl_splash_pct.configure(text="45%")
+        lbl_splash_status.configure(text="Comprobando comunicación con PLC WAGO (192.168.1.69:4840)...", text_color=COLOR_KOSTAL_NAVY)
+        lbl_splash_pct.configure(text="45%", text_color=COLOR_KOSTAL_ACCENT)
         
         res = [None]
         def _thread_con():
@@ -3966,22 +4013,22 @@ def _iniciar_conexion_en_splash():
             if t.is_alive():
                 p_actual = min(0.75, 0.45 + (intentos * 0.04))
                 progress_splash.set(p_actual)
-                lbl_splash_pct.configure(text=f"{int(p_actual*100)}%")
+                lbl_splash_pct.configure(text=f"{int(p_actual*100)}%", text_color=COLOR_KOSTAL_ACCENT)
                 ventana.after(60, lambda: _verificar_hilo(intentos + 1))
             else:
                 if res[0] is True:
                     progress_splash.configure(progress_color="#10B981")
                     progress_splash.set(1.0)
                     lbl_splash_status.configure(text="✓ Conexión establecida con PLC WAGO exitosamente.", text_color="#10B981")
-                    lbl_splash_pct.configure(text="100%")
+                    lbl_splash_pct.configure(text="100%", text_color="#10B981")
                     ventana.after(120, _mostrar_login)
                 else:
                     progress_splash.configure(progress_color="#F59E0B")
                     lbl_splash_status.configure(
                         text="⚠️ Sin comunicación con PLC WAGO (192.168.1.69:4840)",
-                        text_color="#F59E0B"
+                        text_color="#D97706"
                     )
-                    lbl_splash_pct.configure(text="PAUSA")
+                    lbl_splash_pct.configure(text="PAUSA", text_color="#D97706")
                     _mostrar_opciones_sin_plc()
                     
         ventana.after(60, _verificar_hilo)
@@ -4004,7 +4051,7 @@ def _mostrar_opciones_sin_plc():
         f_splash_actions,
         text="El PLC no respondió en la red. Verifique cable Ethernet o seleccione cómo proceder:",
         font=(FONT_MAIN, 11),
-        text_color="#CBD5E1"
+        text_color=TEXT_PRIMARY
     ).pack(pady=(0, 10))
     
     f_sp_btns = ctk.CTkFrame(f_splash_actions, fg_color="transparent")
@@ -4015,11 +4062,11 @@ def _mostrar_opciones_sin_plc():
         text="🔄 Reintentar Conexión al PLC",
         font=(FONT_MAIN, 11, "bold"),
         fg_color=COLOR_KOSTAL_NAVY,
-        hover_color=COLOR_KOSTAL_ACCENT,
+        hover_color=COLOR_KOSTAL_LIGHT,
         text_color="white",
         height=38,
         width=210,
-        corner_radius=6,
+        corner_radius=8,
         command=_reintentar_desde_splash
     )
     btn_sp_reintentar.pack(side="left", padx=6)
@@ -4028,28 +4075,30 @@ def _mostrar_opciones_sin_plc():
         f_sp_btns,
         text="⚡ Iniciar en Modo Simulación",
         font=(FONT_MAIN, 11, "bold"),
-        fg_color="#334155",
-        hover_color="#475569",
-        text_color="white",
+        fg_color="#FFFFFF",
+        hover_color="#F1F5F9",
+        text_color=COLOR_KOSTAL_NAVY,
+        border_width=1,
+        border_color="#CBD5E1",
         height=38,
         width=210,
-        corner_radius=6,
+        corner_radius=8,
         command=_continuar_simulacion_desde_splash
     )
     btn_sp_simulacion.pack(side="left", padx=6)
 
 def _reintentar_desde_splash():
     f_splash_actions.pack_forget()
-    progress_splash.configure(progress_color="#0284C7")
+    progress_splash.configure(progress_color=COLOR_KOSTAL_NAVY)
     _iniciar_conexion_en_splash()
 
 def _continuar_simulacion_desde_splash():
     f_splash_actions.pack_forget()
     progress_splash.configure(progress_color="#0284C7")
     progress_splash.set(1.0)
-    lbl_splash_status.configure(text="Iniciando en MODO SIMULACIÓN (controles activos)...", text_color="#38BDF8")
-    lbl_splash_pct.configure(text="100%")
-    ventana.after(350, _mostrar_login)
+    lbl_splash_status.configure(text="Iniciando en MODO SIMULACIÓN (controles activos)...", text_color=COLOR_KOSTAL_ACCENT)
+    lbl_splash_pct.configure(text="100%", text_color=COLOR_KOSTAL_ACCENT)
+    ventana.after(200, _mostrar_login)
 
 ventana.after(50, _iniciar_conexion_en_splash)
 
