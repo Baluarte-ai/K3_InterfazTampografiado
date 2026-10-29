@@ -15,7 +15,6 @@ Características de Simulación en Windows:
     * Pestaña desplegable de Set 0 y Set Home.
     * Selector de recetas con pantalla completa blanca.
     * Alternador de patrón Vertical / Horizontal.
-    * Modo de 1 o 2 pasadas de tampografía.
     * Catálogo de recetas del administrador (límite 99).
 """
 import os

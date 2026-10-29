@@ -5159,60 +5159,7 @@ btn_pintar = ctk.CTkButton(
     border_color="#CBD5E1",
     command=alternar_pintar
 )
-btn_pintar.pack(fill="both", expand=True, padx=4, pady=(4, 2))
-
-# SELECTOR DE PASADAS DE TAMPOGRAFÍA (1 o 2 Tampos)
-f_pasadas_box = ctk.CTkFrame(f_marcha_b, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_CARD)
-f_pasadas_box.pack(fill="x", padx=4, pady=(6, 4))
-
-f_pasadas_hdr = ctk.CTkFrame(f_pasadas_box, fg_color="transparent")
-f_pasadas_hdr.pack(fill="x", padx=8, pady=(4, 2))
-
-ctk.CTkLabel(
-    f_pasadas_hdr,
-    text="🏷️ CICLO DE TAMPOS:",
-    font=(FONT_MAIN, 10, "bold"),
-    text_color=COLOR_KOSTAL_NAVY
-).pack(side="left")
-
-lbl_pasada_badge = ctk.CTkLabel(
-    f_pasadas_hdr,
-    text="2 PASADAS",
-    font=(FONT_MAIN, 9, "bold"),
-    fg_color="#ECFDF5",
-    text_color="#065F46",
-    corner_radius=4,
-    padx=6,
-    pady=1
-)
-lbl_pasada_badge.pack(side="right")
-
-f_pasadas_btns = ctk.CTkFrame(f_pasadas_box, fg_color="transparent")
-f_pasadas_btns.pack(fill="x", padx=6, pady=(2, 6))
-
-btn_tampo_1 = ctk.CTkButton(
-    f_pasadas_btns,
-    text="1 Tampo (1 Pasada)",
-    font=(FONT_MAIN, 10, "bold"),
-    height=32,
-    corner_radius=6,
-    border_width=1,
-    border_color=BORDER_LIGHT,
-    command=lambda: fijar_pasadas_tampo(1)
-)
-btn_tampo_1.pack(side="left", fill="x", expand=True, padx=(0, 3))
-
-btn_tampo_2 = ctk.CTkButton(
-    f_pasadas_btns,
-    text="2 Tampos (2 Pasadas)",
-    font=(FONT_MAIN, 10, "bold"),
-    height=32,
-    corner_radius=6,
-    border_width=1,
-    border_color=BORDER_LIGHT,
-    command=lambda: fijar_pasadas_tampo(2)
-)
-btn_tampo_2.pack(side="right", fill="x", expand=True, padx=(3, 0))
+btn_pintar.pack(fill="both", expand=True, padx=4, pady=(4, 6))
 
 lbl_pintar_sub = ctk.CTkLabel(
     f_marcha_b,
